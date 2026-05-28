@@ -4,7 +4,7 @@ Production-grade foundation for an offline-first AI-powered ERP + Wholesale Mana
 
 ## Stack
 
-- Backend: FastAPI, SQLAlchemy, SQLite, Pydantic
+- Backend: FastAPI, SQLAlchemy, PostgreSQL/SQLite, Pydantic
 - Frontend: Next.js 15 (App Router), TypeScript, Tailwind CSS, Framer Motion, Lucide
 - Startup: Single command launcher via `start.py`
 
@@ -13,7 +13,7 @@ Production-grade foundation for an offline-first AI-powered ERP + Wholesale Mana
 - Offline-first local mode (self-hosted on-device)
 - Cloud-deployable later without major rewrites
 - Modular backend service/router/schema layers
-- Typed frontend dashboard with reusable components
+- Typed frontend dashboard and products module with reusable components
 - Demo-safe data for public repository usage
 
 ## Folder Structure
@@ -25,17 +25,26 @@ ribbon-line/
 │   │   ├── main.py
 │   │   ├── database.py
 │   │   ├── models/dashboard.py
+│   │   ├── models/products.py
+│   │   ├── repositories/products_repository.py
 │   │   ├── routes/dashboard.py
+│   │   ├── routes/products.py
 │   │   ├── schemas/dashboard.py
-│   │   └── services/dashboard_service.py
+│   │   ├── schemas/products.py
+│   │   ├── services/dashboard_service.py
+│   │   └── services/products_service.py
 │   ├── requirements.txt
 │   └── run.py
 ├── frontend/
 │   ├── app/dashboard/page.tsx
+│   ├── app/products/page.tsx
 │   ├── components/dashboard/*
+│   ├── components/products/*
 │   ├── lib/api.ts
+│   ├── lib/products-api.ts
 │   ├── lib/dashboard-data.ts
 │   ├── types/dashboard.ts
+│   ├── types/products.ts
 │   └── package.json
 ├── start.py
 ├── .env.example
@@ -80,9 +89,18 @@ You will get:
 - `GET /dashboard/activities`
 - `GET /dashboard/insights`
 - `GET /dashboard/stock`
+- `GET /products`
+- `POST /products`
+- `PUT /products/{id}`
+- `PATCH /products/{id}/archive`
+- `GET /products/brands`
+- `POST /products/brands`
+- `GET /products/categories`
+- `POST /products/categories`
+- `POST /products/upload-image`
 
 ## Notes
 
 - Current data is deterministic demo data for architecture validation.
-- SQLite is used by default for offline portability.
-- To move to PostgreSQL/MySQL later, set `DATABASE_URL` and keep service contracts unchanged.
+- PostgreSQL is the primary DB path; SQLite remains available for fully offline mode.
+- Product architecture supports base units + packaging hierarchies and is ready for future customer-specific pricing extension.

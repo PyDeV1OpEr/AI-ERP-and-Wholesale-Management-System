@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.sqlite3
+*.db
+*.pkl
+*.egg-info/
+.env
+.venv/
+venv/
+env/
+*.log
+
+# Node.js / Next.js / React
+node_modules/
+.next/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+dist/
+build/
+.cache/
+*.tsbuildinfo
+
+# macOS
+.DS_Store
+
+# VSCode
+.vscode/
