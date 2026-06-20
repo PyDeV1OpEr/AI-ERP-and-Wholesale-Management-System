@@ -9,19 +9,22 @@ import {
 } from "@/lib/product-form-validation";
 import type { Product } from "@/types/products";
 
+const DEFAULT_MAIN_UNIT = "Box";
 const DEFAULT_BASE_UNIT = "Unit";
 
 export function useProductForm(product: Product | null, isOpen: boolean, defaultBrandId: number) {
   const [values, setValues] = useState<ProductFormValues>({
-    name: "",
-    brandId: defaultBrandId,
-    categoryId: null,
-    buyingPrice: 0,
+      name: "",
+      brandId: defaultBrandId,
+      categoryId: null,
+      mainUnitName: DEFAULT_MAIN_UNIT,
+      baseUnitName: DEFAULT_BASE_UNIT,
+      conversionFactor: 1,
+      buyingPrice: 0,
     sellingPrice: 0,
     imageUrl: null,
     isActive: true
   });
-  const [isArchived, setIsArchived] = useState(false);
   const [errors, setErrors] = useState<ProductFormErrors>({});
   const [touched, setTouched] = useState(false);
 
@@ -31,12 +34,14 @@ export function useProductForm(product: Product | null, isOpen: boolean, default
       name: product?.name ?? "",
       brandId: product?.brand_id ?? defaultBrandId,
       categoryId: product?.category_id ?? null,
+      mainUnitName: product?.main_unit_name ?? DEFAULT_MAIN_UNIT,
+      baseUnitName: product?.base_unit_name ?? product?.base_unit ?? DEFAULT_BASE_UNIT,
+      conversionFactor: product?.conversion_factor ?? 1,
       buyingPrice: Number(product?.cost_price ?? 0),
       sellingPrice: Number(product?.selling_price ?? 0),
       imageUrl: product?.image_url ?? null,
       isActive: product?.is_active ?? true
     });
-    setIsArchived(product?.is_archived ?? false);
     setErrors({});
     setTouched(false);
   }, [isOpen, product, defaultBrandId]);
@@ -56,25 +61,25 @@ export function useProductForm(product: Product | null, isOpen: boolean, default
       name: values.name.trim(),
       brand_id: values.brandId,
       category_id: values.categoryId,
-      base_unit: product?.base_unit ?? DEFAULT_BASE_UNIT,
+      base_unit: values.baseUnitName.trim(),
+      main_unit_name: values.mainUnitName.trim(),
+      base_unit_name: values.baseUnitName.trim(),
+      conversion_factor: values.conversionFactor,
       selling_price: values.sellingPrice,
       cost_price: values.buyingPrice,
       image_url: values.imageUrl,
       is_active: values.isActive,
-      is_archived: isArchived,
       packaging_levels: [] as { unit_name: string; contains: number }[]
     }),
-    [values, isArchived, product?.base_unit]
+    [values]
   );
 
   return {
     values,
-    isArchived,
     errors,
     touched,
     setTouched,
     patch,
-    setIsArchived,
     validate,
     toPayload
   };

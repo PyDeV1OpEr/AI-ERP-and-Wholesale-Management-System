@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { Archive, Copy, Eye, Image, Settings, SquarePen, Tag, Trash2, X } from "lucide-react";
+import { Archive, Copy, Eye, Image, Settings, SquarePen, Tag, X } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { ProductImage } from "@/components/ui/product-image";
 import { formatLkr } from "@/lib/currency";
@@ -13,7 +13,7 @@ const CARD_MEDIA_CLASS = "h-[72px] w-full shrink-0 sm:h-[80px]";
 interface ProductCardProps {
   product: Product;
   onEdit: (product: Product) => void;
-  onArchiveToggle: (product: Product) => void;
+  onArchive: (product: Product) => void;
   onView: (product: Product) => void;
   onDuplicate: (product: Product) => void;
   onRename: (product: Product) => void;
@@ -21,12 +21,12 @@ interface ProductCardProps {
   onRemoveImage: (product: Product) => void;
 }
 
-export function ProductCard({ product, onEdit, onArchiveToggle, onView, onDuplicate, onRename, onChangeCategory, onRemoveImage }: ProductCardProps) {
+export function ProductCard({ product, onEdit, onArchive, onView, onDuplicate, onRename, onChangeCategory, onRemoveImage }: ProductCardProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
   
-  const statusLabel = product.is_archived ? "Archived" : product.is_active ? "Active" : "Inactive";
-  const statusClass = product.is_archived
+  const statusLabel = product.status === "ARCHIVED" ? "Archived" : product.is_active ? "Active" : "Inactive";
+  const statusClass = product.status === "ARCHIVED"
     ? "bg-zinc-800/90 text-zinc-300"
     : product.is_active
       ? "bg-emerald-500/20 text-emerald-300"
@@ -49,7 +49,7 @@ export function ProductCard({ product, onEdit, onArchiveToggle, onView, onDuplic
     { label: "Remove Product Image", icon: X, onClick: () => { onRemoveImage(product); setSettingsOpen(false); } },
     { label: "Change Category", icon: Tag, onClick: () => { onChangeCategory(product); setSettingsOpen(false); } },
     { label: "Open Full Edit", icon: SquarePen, onClick: () => { onEdit(product); setSettingsOpen(false); } },
-    { label: "Archive Product", icon: Archive, onClick: () => { onArchiveToggle(product); setSettingsOpen(false); } },
+    { label: "Archive Product", icon: Archive, onClick: () => { onArchive(product); setSettingsOpen(false); } },
   ];
 
   return (
@@ -100,9 +100,9 @@ export function ProductCard({ product, onEdit, onArchiveToggle, onView, onDuplic
           </button>
           <button
             type="button"
-            onClick={() => onArchiveToggle(product)}
+            onClick={() => onArchive(product)}
             className="rounded-lg p-2 text-zinc-300 hover:bg-white/10 hover:text-white"
-            aria-label={product.is_archived ? "Restore product" : "Archive product"}
+            aria-label="Archive product"
           >
             <Archive className="h-4 w-4" />
           </button>

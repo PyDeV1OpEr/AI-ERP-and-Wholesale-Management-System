@@ -2,13 +2,14 @@
 
 import dynamic from "next/dynamic";
 import { memo, useState } from "react";
-import { ArrowLeft, Barcode, Boxes, Package, Settings2, Truck } from "lucide-react";
+import { ArrowLeft, Boxes, MapPin, Package, Repeat2, Settings2 } from "lucide-react";
 import { ProductImage } from "@/components/ui/product-image";
 import { InventorySettingsModal } from "@/components/inventory/inventory-settings-modal";
 import { InventoryStockHealthCard } from "@/components/inventory/inventory-stock-health-card";
 import { InventoryStockOperations } from "@/components/inventory/inventory-stock-operations";
 import { formatLkr } from "@/lib/currency";
 import type { InventoryItem } from "@/types/inventory";
+import { convertInventory } from "@/utils/inventoryConversion";
 
 interface InventoryDetailViewProps {
   item: InventoryItem | null;
@@ -73,6 +74,12 @@ function InventoryDetailViewComponent({ item, loading, onBack, onUpdated }: Inve
     setRefreshKey((value) => value + 1);
     onUpdated(updated);
   };
+  const converted = convertInventory({
+    quantity: item.quantity_base_unit,
+    conversionFactor: item.conversion_factor,
+    mainUnitName: item.main_unit_name,
+    baseUnitName: item.base_unit_name,
+  });
 
   return (
     <div className="space-y-4">
@@ -122,29 +129,31 @@ function InventoryDetailViewComponent({ item, loading, onBack, onUpdated }: Inve
             <div className="flex items-center gap-3">
               <Package className="h-4 w-4 text-sky-300" />
               <div className="min-w-0">
-                <p className="text-xs text-zinc-500">Category</p>
-                <p className="truncate text-sm text-zinc-200">{item.category_name ?? "Uncategorized"}</p>
+                <p className="text-xs text-zinc-500">Main Unit</p>
+                <p className="truncate text-sm text-zinc-200">{item.main_unit_name}</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <Truck className="h-4 w-4 text-emerald-300" />
+              <Boxes className="h-4 w-4 text-emerald-300" />
               <div className="min-w-0">
-                <p className="text-xs text-zinc-500">Supplier</p>
-                <p className="truncate text-sm text-zinc-200">{item.supplier_name ?? "Not recorded"}</p>
+                <p className="text-xs text-zinc-500">Base Unit</p>
+                <p className="truncate text-sm text-zinc-200">{item.base_unit_name}</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <Boxes className="h-4 w-4 text-amber-300" />
+              <Repeat2 className="h-4 w-4 text-amber-300" />
               <div className="min-w-0">
-                <p className="text-xs text-zinc-500">SKU</p>
-                <p className="truncate text-sm text-zinc-200">{item.sku ?? "Not recorded"}</p>
+                <p className="text-xs text-zinc-500">Conversion Factor</p>
+                <p className="truncate text-sm text-zinc-200">
+                  1 {item.main_unit_name} = {item.conversion_factor.toLocaleString()} {item.base_unit_name}
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <Barcode className="h-4 w-4 text-indigo-300" />
+              <MapPin className="h-4 w-4 text-indigo-300" />
               <div className="min-w-0">
-                <p className="text-xs text-zinc-500">Barcode</p>
-                <p className="truncate text-sm text-zinc-200">{item.barcode ?? "Not recorded"}</p>
+                <p className="text-xs text-zinc-500">Stock Location</p>
+                <p className="truncate text-sm text-zinc-200">{item.stock_location ?? "Not recorded"}</p>
               </div>
             </div>
           </div>
@@ -153,7 +162,8 @@ function InventoryDetailViewComponent({ item, loading, onBack, onUpdated }: Inve
         <section className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
           <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Pricing & Value</p>
           <div className="mt-3">
-            <ValueRow label="Current Quantity" value={`${item.stock_quantity.toLocaleString()} ${item.base_unit}${item.stock_quantity === 1 ? "" : "s"}`} />
+            <ValueRow label="Current Quantity" value={converted.display} />
+            <ValueRow label="Base Units Stored" value={`${item.quantity_base_unit.toLocaleString()} ${item.base_unit_name}`} />
             <ValueRow label="Unit Cost" value={formatLkr(item.unit_cost)} />
             <ValueRow label="Selling Price" value={formatLkr(item.selling_price)} />
             <ValueRow label="Inventory Value" value={formatLkr(item.inventory_value)} />

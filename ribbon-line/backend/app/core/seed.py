@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
-from app.models.products import Brand, Category, Product, ProductUnit, ProductPackagingConversion, StockMovement
+from app.models.products import Brand, Category, InventoryRecord, Product, ProductStatus, ProductUnit, ProductPackagingConversion, StockMovement
 
 
 DEMO_BRANDS = ["Ribbon Line", "PremiumWeave", "SilkRoute", "EcoFiber"]
@@ -157,6 +157,9 @@ def seed_demo_data(db: Session) -> None:
             brand_id=brand_map[data["brand"]].id,
             category_id=category_map[data["category"]].id,
             base_unit=data["base_unit"],
+            main_unit_name=data["packaging"][0]["unit_name"] if data["packaging"] else data["base_unit"],
+            base_unit_name=data["base_unit"],
+            conversion_factor=data["packaging"][0]["contains"] if data["packaging"] else 1,
             selling_price=data["selling_price"],
             cost_price=data["cost_price"],
             stock_quantity=data["stock_quantity"],
@@ -164,10 +167,12 @@ def seed_demo_data(db: Session) -> None:
             reorder_level=data["reorder_level"],
             standard_pack_size=data["standard_pack_size"],
             is_active=True,
+            status=ProductStatus.ACTIVE,
             is_archived=False,
         )
         db.add(product)
         db.flush()
+        db.add(InventoryRecord(product_id=product.id, quantity_base_unit=data["stock_quantity"]))
 
         units: list[ProductUnit] = [
             ProductUnit(product_id=product.id, name=data["base_unit"], is_base=True, level=0)
@@ -201,13 +206,18 @@ def seed_demo_data(db: Session) -> None:
             child_name = pkg["unit_name"]
         db.add_all(conversions)
 
-        for mov in DEMO_MOVEMENTS:
-            movement = StockMovement(
-                product_id=product.id,
-                quantity=abs(mov["quantity"]) if mov["type"] == "received" else -abs(mov["quantity"]),
-                type=mov["type"],
-                notes=mov["notes"],
+        if data["stock_quantity"] > 0:
+            db.add(
+                StockMovement(
+                    product_id=product.id,
+                    quantity=data["stock_quantity"],
+                    previous_quantity=0,
+                    new_quantity=data["stock_quantity"],
+                    movement_type="OPENING_STOCK",
+                    type="OPENING_STOCK",
+                    reference="DEMO-SEED",
+                    notes="Opening stock imported during demo seed.",
+                )
             )
-            db.add(movement)
 
     db.commit()

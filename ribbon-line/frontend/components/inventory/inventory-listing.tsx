@@ -4,6 +4,7 @@ import { memo, useMemo } from "react";
 import { ProductImage } from "@/components/ui/product-image";
 import { formatLkr } from "@/lib/currency";
 import type { InventoryItem, InventoryStatus } from "@/types/inventory";
+import { convertInventory } from "@/utils/inventoryConversion";
 
 interface InventoryListingProps {
   items: InventoryItem[];
@@ -23,10 +24,15 @@ const STATUS_STYLES: Record<InventoryStatus, { label: string; classes: string }>
 };
 
 function QuantityDisplay({ item }: { item: InventoryItem }) {
+  const converted = convertInventory({
+    quantity: item.quantity_base_unit,
+    conversionFactor: item.conversion_factor,
+    mainUnitName: item.main_unit_name,
+    baseUnitName: item.base_unit_name,
+  });
   return (
     <span className="tabular-nums">
-      {item.stock_quantity.toLocaleString()} {item.base_unit}
-      {item.stock_quantity === 1 ? "" : "s"}
+      {converted.display}
     </span>
   );
 }
@@ -187,4 +193,3 @@ function InventoryListingComponent({ items, loading, viewMode, onItemClick, sele
 }
 
 export const InventoryListing = memo(InventoryListingComponent);
-

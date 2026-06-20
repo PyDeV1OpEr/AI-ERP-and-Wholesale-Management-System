@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="zipper pack">
+  <rect width="64" height="64" rx="14" fill="#4a044e"/>
+  <circle cx="50" cy="14" r="8" fill="#fb7185" opacity=".22"/>
+  <path d="M18 18h28a6 6 0 0 1 6 6v22a6 6 0 0 1-6 6H18a6 6 0 0 1-6-6V24a6 6 0 0 1 6-6Z" fill="#fb7185" opacity=".16"/>
+  
+  
+  <rect x="20" y="22" width="24" height="24" rx="5" fill="none" stroke="#fb7185" stroke-width="4"/><path d="M26 32h12M26 39h8" stroke="#fb7185" stroke-width="3" stroke-linecap="round"/>
+  
+</svg>

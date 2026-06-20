@@ -11,9 +11,10 @@ interface InventoryMovementHistoryProps {
 }
 
 const MOVEMENT_ICON: Record<string, { icon: typeof ArrowDown; classes: string; label: string }> = {
-  received: { icon: ArrowDown, classes: "bg-emerald-500/10 text-emerald-300", label: "Received" },
-  sent: { icon: ArrowUp, classes: "bg-rose-500/10 text-rose-300", label: "Reduced" },
-  adjusted: { icon: PackageOpen, classes: "bg-amber-500/10 text-amber-300", label: "Adjusted" },
+  STOCK_IN: { icon: ArrowDown, classes: "bg-emerald-500/10 text-emerald-300", label: "Stock In" },
+  STOCK_OUT: { icon: ArrowUp, classes: "bg-rose-500/10 text-rose-300", label: "Stock Out" },
+  OPENING_STOCK: { icon: ArrowDown, classes: "bg-sky-500/10 text-sky-300", label: "Opening Stock" },
+  ADJUSTMENT: { icon: PackageOpen, classes: "bg-amber-500/10 text-amber-300", label: "Adjusted" },
 };
 
 function formatTime(dateStr: string): string {
@@ -24,7 +25,7 @@ function formatTime(dateStr: string): string {
 }
 
 function MovementRow({ movement }: { movement: StockMovement }) {
-  const meta = MOVEMENT_ICON[movement.type] ?? MOVEMENT_ICON.adjusted;
+  const meta = MOVEMENT_ICON[movement.movement_type] ?? MOVEMENT_ICON.ADJUSTMENT;
   const Icon = meta.icon;
   return (
     <div className="flex items-start gap-3 rounded-lg border border-white/10 bg-white/[0.02] p-3">

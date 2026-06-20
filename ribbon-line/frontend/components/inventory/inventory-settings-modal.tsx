@@ -21,20 +21,14 @@ export function InventorySettingsModal({ isOpen, item, onClose, onSaved }: Inven
   const [maxCapacity, setMaxCapacity] = useState(0);
   const [reorderLevel, setReorderLevel] = useState(0);
   const [packSize, setPackSize] = useState(1);
-  const [supplierName, setSupplierName] = useState("");
-  const [sku, setSku] = useState("");
-  const [barcode, setBarcode] = useState("");
-  const [description, setDescription] = useState("");
+  const [stockLocation, setStockLocation] = useState("");
 
   useEffect(() => {
     if (!item) return;
     setMaxCapacity(item.max_capacity);
     setReorderLevel(item.reorder_level);
     setPackSize(item.standard_pack_size || 1);
-    setSupplierName(item.supplier_name ?? "");
-    setSku(item.sku ?? "");
-    setBarcode(item.barcode ?? "");
-    setDescription(item.description ?? "");
+    setStockLocation(item.stock_location ?? "");
   }, [item]);
 
   const handleSave = async (event: FormEvent<HTMLFormElement>) => {
@@ -47,10 +41,7 @@ export function InventorySettingsModal({ isOpen, item, onClose, onSaved }: Inven
         max_capacity: maxCapacity,
         reorder_level: reorderLevel,
         standard_pack_size: packSize,
-        supplier_name: supplierName.trim() || null,
-        sku: sku.trim() || null,
-        barcode: barcode.trim() || null,
-        description: description.trim() || null,
+        stock_location: stockLocation.trim() || null,
       };
 
       const updated = await updateInventorySettings(item.product_id, payload);
@@ -137,39 +128,11 @@ export function InventorySettingsModal({ isOpen, item, onClose, onSaved }: Inven
               </label>
 
               <label className="block">
-                <span className="text-xs font-medium text-zinc-400">Supplier</span>
+                <span className="text-xs font-medium text-zinc-400">Stock Location</span>
                 <input
-                  value={supplierName}
-                  onChange={(event) => setSupplierName(event.target.value)}
+                  value={stockLocation}
+                  onChange={(event) => setStockLocation(event.target.value)}
                   className="mt-1.5 w-full rounded-lg border border-white/10 bg-[#12121A] px-3 py-2.5 text-sm text-zinc-100 outline-none transition focus:border-sky-500/50"
-                />
-              </label>
-
-              <label className="block">
-                <span className="text-xs font-medium text-zinc-400">SKU</span>
-                <input
-                  value={sku}
-                  onChange={(event) => setSku(event.target.value)}
-                  className="mt-1.5 w-full rounded-lg border border-white/10 bg-[#12121A] px-3 py-2.5 text-sm text-zinc-100 outline-none transition focus:border-sky-500/50"
-                />
-              </label>
-
-              <label className="block">
-                <span className="text-xs font-medium text-zinc-400">Barcode</span>
-                <input
-                  value={barcode}
-                  onChange={(event) => setBarcode(event.target.value)}
-                  className="mt-1.5 w-full rounded-lg border border-white/10 bg-[#12121A] px-3 py-2.5 text-sm text-zinc-100 outline-none transition focus:border-sky-500/50"
-                />
-              </label>
-
-              <label className="block md:col-span-2">
-                <span className="text-xs font-medium text-zinc-400">Description</span>
-                <textarea
-                  value={description}
-                  onChange={(event) => setDescription(event.target.value)}
-                  rows={3}
-                  className="mt-1.5 w-full resize-none rounded-lg border border-white/10 bg-[#12121A] px-3 py-2.5 text-sm text-zinc-100 outline-none transition focus:border-sky-500/50"
                 />
               </label>
             </div>

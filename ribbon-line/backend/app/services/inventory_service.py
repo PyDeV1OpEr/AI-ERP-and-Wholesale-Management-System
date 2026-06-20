@@ -9,7 +9,7 @@ from sqlalchemy import Select, case, func, literal, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.media import to_public_image_url
-from app.models.products import Brand, Category, Product, ProductPackagingConversion, ProductUnit, StockMovement
+from app.models.products import Brand, Category, InventoryRecord, Product, ProductPackagingConversion, ProductStatus, StockMovement
 from app.schemas.inventory import (
     InventoryAnalyticsResponse,
     InventoryDetailResponse,
@@ -26,6 +26,7 @@ from app.schemas.inventory import (
     StockHealthRead,
     StockMovementRead,
 )
+from app.utils.inventory_conversion import convert_inventory
 
 
 def _health_percentage(quantity: int, max_capacity: int) -> float | None:
@@ -70,7 +71,7 @@ class InventoryService:
         page_size = min(max(page_size, 1), 100)
         status_expr = self._status_sql_expression()
         health_pct_expr = self._health_percentage_sql_expression()
-        inventory_value_expr = Product.cost_price * Product.stock_quantity
+        inventory_value_expr = Product.cost_price * InventoryRecord.quantity_base_unit
 
         query: Select = (
             select(
@@ -83,7 +84,11 @@ class InventoryService:
                 Product.supplier_name,
                 Product.image_url,
                 Product.base_unit,
-                Product.stock_quantity,
+                Product.main_unit_name,
+                Product.base_unit_name,
+                Product.conversion_factor,
+                Product.stock_location,
+                InventoryRecord.quantity_base_unit,
                 Product.max_capacity,
                 Product.reorder_level,
                 Product.standard_pack_size,
@@ -101,15 +106,17 @@ class InventoryService:
                 health_pct_expr.label("stock_health_percentage"),
             )
             .join(Brand, Product.brand_id == Brand.id)
+            .join(InventoryRecord, InventoryRecord.product_id == Product.id)
             .outerjoin(Category, Product.category_id == Category.id)
-            .where(Product.is_archived.is_(False))
+            .where(Product.status == ProductStatus.ACTIVE)
         )
 
         count_query: Select = (
             select(func.count(Product.id))
             .join(Brand, Product.brand_id == Brand.id)
+            .join(InventoryRecord, InventoryRecord.product_id == Product.id)
             .outerjoin(Category, Product.category_id == Category.id)
-            .where(Product.is_archived.is_(False))
+            .where(Product.status == ProductStatus.ACTIVE)
         )
 
         if search:
@@ -170,14 +177,8 @@ class InventoryService:
             product.reorder_level = payload.reorder_level
         if payload.standard_pack_size is not None:
             product.standard_pack_size = payload.standard_pack_size
-        if payload.supplier_name is not None:
-            product.supplier_name = payload.supplier_name.strip() or None
-        if payload.sku is not None:
-            product.sku = payload.sku.strip() or None
-        if payload.barcode is not None:
-            product.barcode = payload.barcode.strip() or None
-        if payload.description is not None:
-            product.description = payload.description.strip() or None
+        if payload.stock_location is not None:
+            product.stock_location = payload.stock_location.strip() or None
 
         product.updated_at = datetime.utcnow()
         self.db.commit()
@@ -195,27 +196,30 @@ class InventoryService:
         if not product:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Inventory item not found")
 
-        current_quantity = product.stock_quantity
+        inventory = self._ensure_inventory_record(product)
+        current_quantity = inventory.quantity_base_unit
         if payload.operation == "add":
             delta = payload.quantity
-            movement_type = "received"
+            movement_type = "OPENING_STOCK" if current_quantity == 0 and not self._has_movements(product.id) else "STOCK_IN"
         elif payload.operation == "remove":
             delta = -payload.quantity
-            movement_type = "sent"
+            movement_type = "STOCK_OUT"
         else:
             delta = payload.quantity - current_quantity
-            movement_type = "adjusted"
+            movement_type = "ADJUSTMENT"
 
         new_quantity = current_quantity + delta
         if new_quantity < 0:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Stock quantity cannot go below zero")
 
         now = datetime.utcnow()
+        inventory.quantity_base_unit = new_quantity
+        inventory.updated_at = now
         product.stock_quantity = new_quantity
         product.last_movement_date = now
         product.updated_at = now
 
-        if movement_type == "sent" and delta < 0:
+        if movement_type == "STOCK_OUT" and delta < 0:
             sold_units = abs(delta)
             product.total_units_sold = (product.total_units_sold or 0) + sold_units
             product.total_income_generated = Decimal(str(product.total_income_generated or 0)) + (
@@ -224,8 +228,12 @@ class InventoryService:
 
         movement = StockMovement(
             product_id=product.id,
-            quantity=delta,
+            quantity=abs(delta) if payload.operation != "adjust" else abs(payload.quantity - current_quantity),
+            previous_quantity=current_quantity,
+            new_quantity=new_quantity,
+            movement_type=movement_type,
             type=movement_type,
+            reference=payload.reference.strip() if payload.reference else None,
             notes=payload.notes.strip() if payload.notes else None,
             created_at=now,
         )
@@ -291,7 +299,7 @@ class InventoryService:
 
     def _compute_kpi(self) -> InventoryKpiData:
         status_expr = self._status_sql_expression()
-        total_value_expr = Product.cost_price * Product.stock_quantity
+        total_value_expr = Product.cost_price * InventoryRecord.quantity_base_unit
         aggregate = self.db.execute(
             select(
                 func.count(Product.id).label("total_items"),
@@ -300,17 +308,19 @@ class InventoryService:
                 func.coalesce(func.sum(case((status_expr == "critical", 1), else_=0)), 0).label("critical"),
                 func.coalesce(func.sum(case((status_expr == "out_of_stock", 1), else_=0)), 0).label("out_of_stock"),
                 func.coalesce(func.sum(case((status_expr == "overstocked", 1), else_=0)), 0).label("overstocked"),
-            ).where(Product.is_archived.is_(False))
+            )
+            .join(InventoryRecord, InventoryRecord.product_id == Product.id)
+            .where(Product.status == ProductStatus.ACTIVE)
         ).one()
 
         thirty_days_ago = datetime.utcnow() - timedelta(days=30)
         sold_30 = (
             select(
                 StockMovement.product_id.label("product_id"),
-                func.sum(-StockMovement.quantity).label("sold_units"),
+                func.sum(StockMovement.quantity).label("sold_units"),
             )
             .where(
-                StockMovement.quantity < 0,
+                StockMovement.movement_type == "STOCK_OUT",
                 StockMovement.created_at >= thirty_days_ago,
             )
             .group_by(StockMovement.product_id)
@@ -325,7 +335,7 @@ class InventoryService:
                 select(func.count(Product.id))
                 .join(sold_30, sold_30.c.product_id == Product.id)
                 .where(
-                    Product.is_archived.is_(False),
+                    Product.status == ProductStatus.ACTIVE,
                     sold_30.c.sold_units >= threshold_expr,
                 )
             ).scalar_one()
@@ -333,8 +343,8 @@ class InventoryService:
         )
 
         sold_ever = (
-            select(StockMovement.product_id.label("product_id"))
-            .where(StockMovement.quantity < 0)
+                select(StockMovement.product_id.label("product_id"))
+            .where(StockMovement.movement_type == "STOCK_OUT")
             .group_by(StockMovement.product_id)
             .subquery()
         )
@@ -343,10 +353,11 @@ class InventoryService:
                 select(func.count(Product.id))
                 .outerjoin(sold_ever, sold_ever.c.product_id == Product.id)
                 .where(
-                    Product.is_archived.is_(False),
-                    Product.stock_quantity > 0,
+                    Product.status == ProductStatus.ACTIVE,
+                    InventoryRecord.quantity_base_unit > 0,
                     sold_ever.c.product_id.is_(None),
                 )
+                .join(InventoryRecord, InventoryRecord.product_id == Product.id)
             ).scalar_one()
             or 0
         )
@@ -363,14 +374,22 @@ class InventoryService:
         )
 
     def _movement_summary(self, product: Product) -> InventoryMovementSummary:
-        received_expr = case((StockMovement.quantity > 0, StockMovement.quantity), else_=0)
-        sold_expr = case((StockMovement.quantity < 0, -StockMovement.quantity), else_=0)
+        received_expr = case(
+            (StockMovement.movement_type.in_(("STOCK_IN", "OPENING_STOCK")), StockMovement.quantity),
+            else_=0,
+        )
+        sold_expr = case((StockMovement.movement_type == "STOCK_OUT", StockMovement.quantity), else_=0)
+        net_expr = case(
+            (StockMovement.movement_type.in_(("STOCK_IN", "OPENING_STOCK")), StockMovement.quantity),
+            (StockMovement.movement_type == "STOCK_OUT", -StockMovement.quantity),
+            else_=StockMovement.new_quantity - StockMovement.previous_quantity,
+        )
         aggregate = self.db.execute(
             select(
                 func.count(StockMovement.id).label("movement_count"),
                 func.coalesce(func.sum(received_expr), 0).label("received"),
                 func.coalesce(func.sum(sold_expr), 0).label("sold"),
-                func.coalesce(func.sum(StockMovement.quantity), 0).label("net_change"),
+                func.coalesce(func.sum(net_expr), 0).label("net_change"),
                 func.max(StockMovement.created_at).label("last_movement_date"),
             ).where(StockMovement.product_id == product.id)
         ).one()
@@ -378,12 +397,13 @@ class InventoryService:
         now = datetime.utcnow()
         sold_28 = self._sold_units_since(product.id, now - timedelta(days=28))
         sold_90 = self._sold_units_since(product.id, now - timedelta(days=90))
+        quantity = self._quantity_base_unit(product)
 
         average_weekly = round(sold_28 / 4, 2) if sold_28 > 0 else None
-        turnover_rate = round(sold_90 / max(product.stock_quantity, 1), 2) if sold_90 > 0 else None
+        turnover_rate = round(sold_90 / max(quantity, 1), 2) if sold_90 > 0 else None
         estimated_duration = None
         if average_weekly and average_weekly > 0:
-            estimated_duration = round(product.stock_quantity / (average_weekly / 7), 1)
+            estimated_duration = round(quantity / (average_weekly / 7), 1)
 
         sold_units = int(aggregate.sold or 0)
         revenue = Decimal(str(product.selling_price)) * Decimal(sold_units)
@@ -403,9 +423,9 @@ class InventoryService:
     def _sold_units_since(self, product_id: int, since: datetime) -> int:
         return int(
             self.db.execute(
-                select(func.coalesce(func.sum(-StockMovement.quantity), 0)).where(
+                select(func.coalesce(func.sum(StockMovement.quantity), 0)).where(
                     StockMovement.product_id == product_id,
-                    StockMovement.quantity < 0,
+                    StockMovement.movement_type == "STOCK_OUT",
                     StockMovement.created_at >= since,
                 )
             ).scalar_one()
@@ -419,17 +439,18 @@ class InventoryService:
         stock_health: StockHealthRead,
     ) -> list[InventoryIntelligenceSignal]:
         signals: list[InventoryIntelligenceSignal] = []
+        quantity = self._quantity_base_unit(product)
 
-        if product.reorder_level > 0 and product.stock_quantity <= product.reorder_level:
+        if product.reorder_level > 0 and quantity <= product.reorder_level:
             signals.append(
                 InventoryIntelligenceSignal(
                     category="low_stock_risk",
                     title="Low Stock Risk",
                     reason=(
-                        f"Current quantity is {product.stock_quantity:,}, at or below the "
+                        f"Current quantity is {quantity:,}, at or below the "
                         f"configured reorder level of {product.reorder_level:,}."
                     ),
-                    severity="critical" if product.stock_quantity <= max(product.reorder_level * 0.3, 1) else "warning",
+                    severity="critical" if quantity <= max(product.reorder_level * 0.3, 1) else "warning",
                 )
             )
 
@@ -476,7 +497,7 @@ class InventoryService:
                 )
             )
 
-        inventory_value = Decimal(str(product.cost_price)) * Decimal(product.stock_quantity)
+        inventory_value = Decimal(str(product.cost_price)) * Decimal(quantity)
         revenue = Decimal(str(summary.revenue_from_stock_reductions))
         if revenue > 0 and revenue >= inventory_value:
             signals.append(
@@ -503,7 +524,7 @@ class InventoryService:
                     severity="warning",
                 )
             )
-        elif average_weekly > 0 and product.stock_quantity <= product.reorder_level + average_weekly:
+        elif average_weekly > 0 and quantity <= product.reorder_level + average_weekly:
             signals.append(
                 InventoryIntelligenceSignal(
                     category="restock_recommended",
@@ -531,7 +552,7 @@ class InventoryService:
     def _status_sql_expression(self):
         percentage = self._health_percentage_sql_expression()
         return case(
-            (Product.stock_quantity <= 0, literal("out_of_stock")),
+            (InventoryRecord.quantity_base_unit <= 0, literal("out_of_stock")),
             (Product.max_capacity <= 0, literal("not_configured")),
             (percentage <= 15, literal("critical")),
             (percentage <= 35, literal("low_stock")),
@@ -540,13 +561,14 @@ class InventoryService:
         )
 
     def _health_percentage_sql_expression(self):
-        return (Product.stock_quantity * 100.0) / func.nullif(Product.max_capacity, 0)
+        return (InventoryRecord.quantity_base_unit * 100.0) / func.nullif(Product.max_capacity, 0)
 
     def _to_stock_health(self, product: Product) -> StockHealthRead:
+        quantity = self._quantity_base_unit(product)
         return StockHealthRead(
-            percentage=_health_percentage(product.stock_quantity, product.max_capacity or 0),
-            status=_health_status(product.stock_quantity, product.max_capacity or 0),
-            current_quantity=product.stock_quantity,
+            percentage=_health_percentage(quantity, product.max_capacity or 0),
+            status=_health_status(quantity, product.max_capacity or 0),
+            current_quantity=quantity,
             max_capacity=product.max_capacity or 0,
             reorder_level=product.reorder_level or 0,
         )
@@ -556,6 +578,13 @@ class InventoryService:
         stock_health_percentage = None
         if row.stock_health_percentage is not None:
             stock_health_percentage = round(float(row.stock_health_percentage), 1)
+        quantity = int(row.quantity_base_unit or 0)
+        converted = convert_inventory(
+            quantity=quantity,
+            conversion_factor=row.conversion_factor,
+            main_unit_name=row.main_unit_name,
+            base_unit_name=row.base_unit_name,
+        )
 
         return InventoryItemRead(
             id=row.id,
@@ -568,8 +597,16 @@ class InventoryService:
             category_name=row.category_name,
             supplier_name=row.supplier_name,
             image_url=to_public_image_url(row.image_url),
-            base_unit=row.base_unit,
-            stock_quantity=row.stock_quantity,
+            main_unit_name=row.main_unit_name,
+            base_unit_name=row.base_unit_name,
+            conversion_factor=row.conversion_factor,
+            stock_location=row.stock_location,
+            base_unit=row.base_unit_name,
+            quantity_base_unit=quantity,
+            stock_quantity=quantity,
+            main_units=converted.main_units,
+            remaining_base_units=converted.remaining_base_units,
+            quantity_display=converted.display,
             max_capacity=row.max_capacity or 0,
             reorder_level=row.reorder_level or 0,
             standard_pack_size=row.standard_pack_size or 1,
@@ -606,7 +643,14 @@ class InventoryService:
                             break
                 unit_info.append(info)
 
-        inventory_value = Decimal(str(product.cost_price)) * Decimal(product.stock_quantity)
+        quantity = self._quantity_base_unit(product)
+        converted = convert_inventory(
+            quantity=quantity,
+            conversion_factor=product.conversion_factor,
+            main_unit_name=product.main_unit_name,
+            base_unit_name=product.base_unit_name,
+        )
+        inventory_value = Decimal(str(product.cost_price)) * Decimal(quantity)
         stock_health = self._to_stock_health(product)
         return InventoryItemRead(
             id=product.id,
@@ -619,8 +663,16 @@ class InventoryService:
             category_name=product.category.name if product.category else None,
             supplier_name=product.supplier_name,
             image_url=to_public_image_url(product.image_url),
-            base_unit=product.base_unit,
-            stock_quantity=product.stock_quantity,
+            main_unit_name=product.main_unit_name,
+            base_unit_name=product.base_unit_name,
+            conversion_factor=product.conversion_factor,
+            stock_location=product.stock_location,
+            base_unit=product.base_unit_name,
+            quantity_base_unit=quantity,
+            stock_quantity=quantity,
+            main_units=converted.main_units,
+            remaining_base_units=converted.remaining_base_units,
+            quantity_display=converted.display,
             max_capacity=product.max_capacity or 0,
             reorder_level=product.reorder_level or 0,
             standard_pack_size=product.standard_pack_size or 1,
@@ -642,6 +694,7 @@ class InventoryService:
         options = [
             selectinload(Product.brand),
             selectinload(Product.category),
+            selectinload(Product.inventory_record),
         ]
         if include_units:
             options.extend(
@@ -653,13 +706,32 @@ class InventoryService:
             )
         return self.db.execute(
             select(Product)
-            .where(Product.id == product_id, Product.is_archived.is_(False))
+            .where(Product.id == product_id, Product.status == ProductStatus.ACTIVE)
             .options(*options)
         ).scalars().first()
+
+    def _ensure_inventory_record(self, product: Product) -> InventoryRecord:
+        if product.inventory_record is not None:
+            return product.inventory_record
+        inventory = InventoryRecord(product_id=product.id, quantity_base_unit=max(product.stock_quantity or 0, 0))
+        self.db.add(inventory)
+        self.db.flush()
+        product.inventory_record = inventory
+        return inventory
+
+    def _quantity_base_unit(self, product: Product) -> int:
+        return self._ensure_inventory_record(product).quantity_base_unit
 
     def _product_exists(self, product_id: int) -> bool:
         return bool(
             self.db.execute(
-                select(Product.id).where(Product.id == product_id, Product.is_archived.is_(False)).limit(1)
+                select(Product.id).where(Product.id == product_id, Product.status == ProductStatus.ACTIVE).limit(1)
+            ).scalar_one_or_none()
+        )
+
+    def _has_movements(self, product_id: int) -> bool:
+        return bool(
+            self.db.execute(
+                select(StockMovement.id).where(StockMovement.product_id == product_id).limit(1)
             ).scalar_one_or_none()
         )

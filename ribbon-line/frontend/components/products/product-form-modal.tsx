@@ -47,7 +47,7 @@ export function ProductFormModal({
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const defaultBrandId = brands[0]?.id ?? 0;
-  const { values, isArchived, errors, patch, setIsArchived, validate, toPayload, setTouched } = useProductForm(
+  const { values, errors, patch, validate, toPayload, setTouched } = useProductForm(
     product,
     isOpen,
     defaultBrandId
@@ -151,14 +151,27 @@ export function ProductFormModal({
                 name={values.name}
                 brandId={values.brandId}
                 categoryId={values.categoryId}
+                mainUnitName={values.mainUnitName}
+                baseUnitName={values.baseUnitName}
+                conversionFactor={values.conversionFactor}
                 imageUrl={values.imageUrl}
                 brands={brands}
                 categories={categories}
-                errors={{ name: errors.name, brandId: errors.brandId }}
+                errors={{
+                  name: errors.name,
+                  brandId: errors.brandId,
+                  mainUnitName: errors.mainUnitName,
+                  baseUnitName: errors.baseUnitName,
+                  conversionFactor: errors.conversionFactor,
+                }}
                 uploadingImage={uploadingImage}
                 onNameChange={(v) => patch("name", v)}
                 onBrandChange={(v) => patch("brandId", v)}
                 onCategoryChange={(v) => patch("categoryId", v)}
+                onMainUnitChange={(v) => patch("mainUnitName", v)}
+                onBaseUnitChange={(v) => patch("baseUnitName", v)}
+                onConversionFactorChange={(v) => patch("conversionFactor", v)}
+                onImageUrlChange={(v) => patch("imageUrl", v)}
                 onImageSelect={handleImageSelect}
                 onCreateBrand={async (name) => {
                   const brand = await createBrand(name);
@@ -182,9 +195,7 @@ export function ProductFormModal({
 
               <ProductStatusSection
                 isActive={values.isActive}
-                isArchived={isArchived}
                 onActiveChange={(v) => patch("isActive", v)}
-                onArchivedChange={setIsArchived}
               />
             </div>
 

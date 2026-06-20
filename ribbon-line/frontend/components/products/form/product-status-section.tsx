@@ -5,28 +5,16 @@ import { StatusToggle } from "@/components/ui/status-toggle";
 
 interface ProductStatusSectionProps {
   isActive: boolean;
-  isArchived: boolean;
   onActiveChange: (value: boolean) => void;
-  onArchivedChange: (value: boolean) => void;
 }
 
-export function ProductStatusSection({
-  isActive,
-  isArchived,
-  onActiveChange,
-  onArchivedChange
-}: ProductStatusSectionProps) {
+export function ProductStatusSection({ isActive, onActiveChange }: ProductStatusSectionProps) {
   return (
     <FormSection
       title="Status"
-      description="Archived products stay in the database and remain linked to historical records."
+      description="Use Archive Manager to remove products from active catalog without losing stock history."
     >
-      <StatusToggle
-        isActive={isActive}
-        isArchived={isArchived}
-        onActiveChange={onActiveChange}
-        onArchivedChange={onArchivedChange}
-      />
+      <StatusToggle isActive={isActive} onActiveChange={onActiveChange} />
     </FormSection>
   );
 }

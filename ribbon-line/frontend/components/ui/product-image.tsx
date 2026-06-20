@@ -44,6 +44,8 @@ export function ProductImage({
       <img
         src={resolvedSrc}
         alt={alt}
+        loading="lazy"
+        decoding="async"
         className={cn("h-full w-full object-cover", className)}
         onError={() => setFailed(true)}
       />

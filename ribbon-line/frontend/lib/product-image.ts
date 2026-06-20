@@ -12,6 +12,10 @@ export function resolveProductImageUrl(imageUrl: string | null | undefined): str
     return value;
   }
 
+  if (value.startsWith("/assets/")) {
+    return value;
+  }
+
   const path = value.startsWith("/") ? value : `/${value}`;
   return `${API_BASE_URL}${path}`;
 }

@@ -19,8 +19,11 @@ export interface InventoryUnitInfo {
 
 export interface StockMovement {
   id: number;
+  movement_type: "STOCK_IN" | "STOCK_OUT" | "ADJUSTMENT" | "OPENING_STOCK" | string;
   quantity: number;
-  type: string;
+  previous_quantity: number;
+  new_quantity: number;
+  reference: string | null;
   notes: string | null;
   created_at: string;
 }
@@ -52,8 +55,16 @@ export interface InventoryItem {
   category_name: string | null;
   supplier_name: string | null;
   image_url: string | null;
+  main_unit_name: string;
+  base_unit_name: string;
+  conversion_factor: number;
+  stock_location: string | null;
   base_unit: string;
+  quantity_base_unit: number;
   stock_quantity: number;
+  main_units: number;
+  remaining_base_units: number;
+  quantity_display: string;
   max_capacity: number;
   reorder_level: number;
   standard_pack_size: number;
@@ -92,15 +103,13 @@ export interface InventorySettingsPayload {
   max_capacity?: number;
   reorder_level?: number;
   standard_pack_size?: number;
-  supplier_name?: string | null;
-  sku?: string | null;
-  barcode?: string | null;
-  description?: string | null;
+  stock_location?: string | null;
 }
 
 export interface InventoryStockOperationPayload {
   operation: "add" | "remove" | "adjust";
   quantity: number;
+  reference?: string | null;
   notes?: string | null;
 }
 
@@ -148,4 +157,3 @@ export interface InventoryAnalyticsResponse {
   movement_summary: InventoryMovementSummary;
   intelligence: InventoryIntelligenceSignal[];
 }
-

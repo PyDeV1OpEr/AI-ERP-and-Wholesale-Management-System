@@ -8,6 +8,7 @@ from app.models.products import (
     Category,
     Product,
     ProductPackagingConversion,
+    ProductStatus,
     ProductUnit,
 )
 
@@ -19,7 +20,7 @@ class ProductsRepository:
     def list_products(
         self,
         *,
-        include_archived: bool,
+        status: str | None,
         search: str | None,
         brand_id: int | None,
         category_id: int | None,
@@ -27,15 +28,19 @@ class ProductsRepository:
         query: Select[tuple[Product]] = select(Product).options(
             selectinload(Product.brand),
             selectinload(Product.category),
+            selectinload(Product.inventory_record),
             selectinload(Product.units),
             selectinload(Product.conversions).selectinload(ProductPackagingConversion.parent_unit),
             selectinload(Product.conversions).selectinload(ProductPackagingConversion.child_unit),
         )
         count_query = select(func.count(Product.id))
 
-        if not include_archived:
-            query = query.where(Product.is_archived.is_(False))
-            count_query = count_query.where(Product.is_archived.is_(False))
+        if status:
+            query = query.where(Product.status == status)
+            count_query = count_query.where(Product.status == status)
+        else:
+            query = query.where(Product.status == ProductStatus.ACTIVE)
+            count_query = count_query.where(Product.status == ProductStatus.ACTIVE)
 
         if search:
             search_clause = or_(
@@ -53,7 +58,11 @@ class ProductsRepository:
             query = query.where(Product.category_id == category_id)
             count_query = count_query.where(Product.category_id == category_id)
 
-        query = query.order_by(Product.updated_at.desc())
+        if status == ProductStatus.ARCHIVED:
+            query = query.order_by(Product.archived_at.desc(), Product.updated_at.desc())
+        else:
+            query = query.order_by(Product.updated_at.desc())
+
         items = self.db.execute(query).scalars().all()
         total = self.db.execute(count_query).scalar_one()
         return items, total
@@ -65,6 +74,7 @@ class ProductsRepository:
             .options(
                 selectinload(Product.brand),
                 selectinload(Product.category),
+                selectinload(Product.inventory_record),
                 selectinload(Product.units),
                 selectinload(Product.conversions).selectinload(ProductPackagingConversion.parent_unit),
                 selectinload(Product.conversions).selectinload(ProductPackagingConversion.child_unit),
@@ -76,6 +86,10 @@ class ProductsRepository:
         self.db.add(product)
         self.db.flush()
         return product
+
+    def delete_product(self, product: Product) -> None:
+        self.db.delete(product)
+        self.db.flush()
 
     def delete_product_relations(self, product_id: int) -> None:
         self.db.query(ProductPackagingConversion).filter(ProductPackagingConversion.product_id == product_id).delete()

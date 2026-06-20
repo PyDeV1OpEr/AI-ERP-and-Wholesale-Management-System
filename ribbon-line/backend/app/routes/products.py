@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, File, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Query, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.models.products import ProductStatus
 from app.schemas.products import (
     BrandCreate,
     BrandRead,
     CategoryCreate,
     CategoryRead,
-    ProductArchiveUpdate,
     ProductCreate,
     ProductImageUploadResponse,
     ProductListResponse,
@@ -23,14 +23,27 @@ router = APIRouter(prefix="/products", tags=["products"])
 
 @router.get("", response_model=ProductListResponse)
 def list_products(
-    include_archived: bool = Query(False),
     search: str | None = Query(None),
     brand_id: int | None = Query(None),
     category_id: int | None = Query(None),
     db: Session = Depends(get_db),
 ):
     return ProductsService(db).list_products(
-        include_archived=include_archived,
+        status=ProductStatus.ACTIVE,
+        search=search,
+        brand_id=brand_id,
+        category_id=category_id,
+    )
+
+
+@router.get("/archived", response_model=ProductListResponse)
+def list_archived_products(
+    search: str | None = Query(None),
+    brand_id: int | None = Query(None),
+    category_id: int | None = Query(None),
+    db: Session = Depends(get_db),
+):
+    return ProductsService(db).list_archived_products(
         search=search,
         brand_id=brand_id,
         category_id=category_id,
@@ -47,9 +60,20 @@ def update_product(product_id: int, payload: ProductUpdate, db: Session = Depend
     return ProductsService(db).update_product(product_id, payload)
 
 
-@router.patch("/{product_id}/archive", response_model=ProductRead)
-def update_product_archive(product_id: int, payload: ProductArchiveUpdate, db: Session = Depends(get_db)):
-    return ProductsService(db).update_archive_status(product_id, payload)
+@router.post("/{product_id}/archive", response_model=ProductRead)
+def archive_product(product_id: int, db: Session = Depends(get_db)):
+    return ProductsService(db).archive_product(product_id)
+
+
+@router.post("/{product_id}/restore", response_model=ProductRead)
+def restore_product(product_id: int, db: Session = Depends(get_db)):
+    return ProductsService(db).restore_product(product_id)
+
+
+@router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
+def permanently_delete_product(product_id: int, db: Session = Depends(get_db)):
+    ProductsService(db).permanently_delete_product(product_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/brands", response_model=list[BrandRead])

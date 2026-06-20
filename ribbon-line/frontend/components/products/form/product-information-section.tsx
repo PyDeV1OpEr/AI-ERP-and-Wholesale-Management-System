@@ -10,14 +10,21 @@ interface ProductInformationSectionProps {
   name: string;
   brandId: number;
   categoryId: number | null;
+  mainUnitName: string;
+  baseUnitName: string;
+  conversionFactor: number;
   imageUrl: string | null;
   brands: Brand[];
   categories: Category[];
-  errors: { name?: string; brandId?: string };
+  errors: { name?: string; brandId?: string; mainUnitName?: string; baseUnitName?: string; conversionFactor?: string };
   uploadingImage: boolean;
   onNameChange: (value: string) => void;
   onBrandChange: (value: number) => void;
   onCategoryChange: (value: number | null) => void;
+  onMainUnitChange: (value: string) => void;
+  onBaseUnitChange: (value: string) => void;
+  onConversionFactorChange: (value: number) => void;
+  onImageUrlChange: (value: string | null) => void;
   onImageSelect: (file: File) => void;
   onCreateBrand: (name: string) => Promise<void>;
   onCreateCategory: (name: string) => Promise<void>;
@@ -27,6 +34,9 @@ export function ProductInformationSection({
   name,
   brandId,
   categoryId,
+  mainUnitName,
+  baseUnitName,
+  conversionFactor,
   imageUrl,
   brands,
   categories,
@@ -35,6 +45,10 @@ export function ProductInformationSection({
   onNameChange,
   onBrandChange,
   onCategoryChange,
+  onMainUnitChange,
+  onBaseUnitChange,
+  onConversionFactorChange,
+  onImageUrlChange,
   onImageSelect,
   onCreateBrand,
   onCreateCategory
@@ -103,8 +117,60 @@ export function ProductInformationSection({
         </FormField>
       </div>
 
+      <div className="grid gap-4 md:grid-cols-3">
+        <FormField label="Main Unit" htmlFor="main-unit" required error={errors.mainUnitName}>
+          <input
+            id="main-unit"
+            list="main-unit-options"
+            value={mainUnitName}
+            onChange={(e) => onMainUnitChange(e.target.value)}
+            className={fieldInputClass}
+            aria-invalid={!!errors.mainUnitName}
+          />
+          <datalist id="main-unit-options">
+            {["Box", "Carton", "Pack", "Bag", "Case"].map((unit) => (
+              <option key={unit} value={unit} />
+            ))}
+          </datalist>
+        </FormField>
+
+        <FormField label="Base Unit" htmlFor="base-unit" required error={errors.baseUnitName}>
+          <input
+            id="base-unit"
+            list="base-unit-options"
+            value={baseUnitName}
+            onChange={(e) => onBaseUnitChange(e.target.value)}
+            className={fieldInputClass}
+            aria-invalid={!!errors.baseUnitName}
+          />
+          <datalist id="base-unit-options">
+            {["Roll", "Bundle", "Piece", "Packet", "Kg", "Meter"].map((unit) => (
+              <option key={unit} value={unit} />
+            ))}
+          </datalist>
+        </FormField>
+
+        <FormField label="Conversion Factor" htmlFor="conversion-factor" required error={errors.conversionFactor}>
+          <input
+            id="conversion-factor"
+            type="number"
+            min={1}
+            step={1}
+            value={conversionFactor}
+            onChange={(e) => onConversionFactorChange(Math.max(1, Number.parseInt(e.target.value, 10) || 1))}
+            className={fieldInputClass}
+            aria-invalid={!!errors.conversionFactor}
+          />
+        </FormField>
+      </div>
+
       <FormField label="Product Image" helper="Optional. Helps your team identify products quickly.">
-        <ImageUploader imageUrl={imageUrl} uploading={uploadingImage} onSelect={onImageSelect} />
+        <ImageUploader
+          imageUrl={imageUrl}
+          uploading={uploadingImage}
+          onSelect={onImageSelect}
+          onImageUrlChange={onImageUrlChange}
+        />
       </FormField>
     </FormSection>
   );

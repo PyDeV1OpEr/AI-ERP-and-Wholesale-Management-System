@@ -2,10 +2,16 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+
+
+class ProductStatus:
+    ACTIVE = "ACTIVE"
+    ARCHIVED = "ARCHIVED"
+    DELETED = "DELETED"
 
 
 class Brand(Base):
@@ -33,8 +39,9 @@ class Category(Base):
 class Product(Base):
     __tablename__ = "products"
     __table_args__ = (
-        Index("ix_products_inventory_active_updated", "is_archived", "updated_at"),
-        Index("ix_products_inventory_category", "category_id", "is_archived"),
+        CheckConstraint("conversion_factor > 0", name="ck_products_conversion_factor_positive"),
+        Index("ix_products_status_updated", "status", "updated_at"),
+        Index("ix_products_inventory_category_status", "category_id", "status"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
@@ -46,11 +53,18 @@ class Product(Base):
     category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"), nullable=True)
     supplier_name: Mapped[str | None] = mapped_column(String(160), nullable=True, index=True)
     base_unit: Mapped[str] = mapped_column(String(80), nullable=False)
+    main_unit_name: Mapped[str] = mapped_column(String(80), nullable=False, default="Box")
+    base_unit_name: Mapped[str] = mapped_column(String(80), nullable=False, default="Unit")
+    conversion_factor: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    stock_location: Mapped[str | None] = mapped_column(String(160), nullable=True)
     selling_price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     cost_price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default=ProductStatus.ACTIVE, index=True)
     is_archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     stock_quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     max_capacity: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     reorder_level: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -72,11 +86,32 @@ class Product(Base):
         back_populates="product",
         cascade="all, delete-orphan",
     )
+    inventory_record: Mapped["InventoryRecord | None"] = relationship(
+        back_populates="product",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
     stock_movements: Mapped[list["StockMovement"]] = relationship(
         back_populates="product",
         cascade="all, delete-orphan",
         order_by="StockMovement.created_at.desc()",
     )
+
+
+class InventoryRecord(Base):
+    __tablename__ = "inventory_records"
+    __table_args__ = (
+        CheckConstraint("quantity_base_unit >= 0", name="ck_inventory_quantity_non_negative"),
+        Index("ix_inventory_records_product", "product_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), nullable=False, unique=True)
+    quantity_base_unit: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
+
+    product: Mapped[Product] = relationship(back_populates="inventory_record")
 
 
 class ProductUnit(Base):
@@ -114,12 +149,17 @@ class StockMovement(Base):
     __table_args__ = (
         Index("ix_stock_movements_product_created", "product_id", "created_at"),
         Index("ix_stock_movements_type_created", "type", "created_at"),
+        Index("ix_stock_movements_movement_type_created", "movement_type", "created_at"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), nullable=False, index=True)
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
-    type: Mapped[str] = mapped_column(String(20), nullable=False)
+    previous_quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    new_quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    movement_type: Mapped[str] = mapped_column(String(32), nullable=False, default="ADJUSTMENT")
+    type: Mapped[str] = mapped_column(String(32), nullable=False, default="ADJUSTMENT")
+    reference: Mapped[str | None] = mapped_column(String(160), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
 

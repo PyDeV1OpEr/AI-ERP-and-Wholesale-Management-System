@@ -2,6 +2,9 @@ export interface ProductFormValues {
   name: string;
   brandId: number;
   categoryId: number | null;
+  mainUnitName: string;
+  baseUnitName: string;
+  conversionFactor: number;
   buyingPrice: number;
   sellingPrice: number;
   imageUrl: string | null;
@@ -19,6 +22,18 @@ export function validateProductForm(values: ProductFormValues): ProductFormError
 
   if (!values.brandId) {
     errors.brandId = "Please select a brand.";
+  }
+
+  if (!values.mainUnitName.trim()) {
+    errors.mainUnitName = "Main unit is required.";
+  }
+
+  if (!values.baseUnitName.trim()) {
+    errors.baseUnitName = "Base unit is required.";
+  }
+
+  if (!Number.isInteger(values.conversionFactor) || values.conversionFactor <= 0) {
+    errors.conversionFactor = "Conversion factor must be a positive whole number.";
   }
 
   if (values.buyingPrice < 0) {

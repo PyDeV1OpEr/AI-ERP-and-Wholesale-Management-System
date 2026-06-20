@@ -12,6 +12,7 @@ import {
 import { ProductImage } from "@/components/ui/product-image";
 import { formatLkr } from "@/lib/currency";
 import type { InventoryItem, StockMovement } from "@/types/inventory";
+import { convertInventory } from "@/utils/inventoryConversion";
 
 interface InventorySidePanelProps {
   item: InventoryItem | null;
@@ -29,9 +30,10 @@ const STATUS_STYLES: Record<string, { label: string; classes: string }> = {
 };
 
 const MOVEMENT_ICONS: Record<string, { icon: typeof ArrowUp; color: string }> = {
-  received: { icon: ArrowDown, color: "text-emerald-400" },
-  sent: { icon: ArrowUp, color: "text-rose-400" },
-  adjusted: { icon: PackageOpen, color: "text-amber-400" },
+  STOCK_IN: { icon: ArrowDown, color: "text-emerald-400" },
+  STOCK_OUT: { icon: ArrowUp, color: "text-rose-400" },
+  OPENING_STOCK: { icon: ArrowDown, color: "text-sky-400" },
+  ADJUSTMENT: { icon: PackageOpen, color: "text-amber-400" },
 };
 
 function formatTimeAgo(dateStr: string): string {
@@ -45,27 +47,13 @@ function formatTimeAgo(dateStr: string): string {
 }
 
 function UnitDisplay({ item }: { item: InventoryItem }) {
-  const baseQty = item.stock_quantity;
-  const parentUnit = item.units.find((u) => !u.is_base);
-  if (!parentUnit || !parentUnit.conversion_quantity) {
-    return (
-      <span>
-        {baseQty.toLocaleString()} {item.base_unit}s
-      </span>
-    );
-  }
-  const parentQty = Math.floor(baseQty / parentUnit.conversion_quantity);
-  const remainder = baseQty % parentUnit.conversion_quantity;
-  return (
-    <span>
-      {parentQty > 0 && <>{parentQty} {parentUnit.unit_name}s </>}
-      {remainder > 0 && (
-        <span className="text-zinc-400">
-          ({remainder} {item.base_unit}{remainder > 1 ? "s" : ""})
-        </span>
-      )}
-    </span>
-  );
+  const converted = convertInventory({
+    quantity: item.quantity_base_unit,
+    conversionFactor: item.conversion_factor,
+    mainUnitName: item.main_unit_name,
+    baseUnitName: item.base_unit_name,
+  });
+  return <span>{converted.display}</span>;
 }
 
 export function InventorySidePanel({ item, movements, loading, isOpen, onClose }: InventorySidePanelProps) {
@@ -179,8 +167,12 @@ export function InventorySidePanel({ item, movements, loading, isOpen, onClose }
                   ) : (
                     <div className="space-y-2">
                       {movements.map((mov) => {
-                        const iconDef = MOVEMENT_ICONS[mov.type] ?? MOVEMENT_ICONS.adjusted;
+                        const iconDef = MOVEMENT_ICONS[mov.movement_type] ?? MOVEMENT_ICONS.ADJUSTMENT;
                         const Icon = iconDef.icon;
+                        const movementLabel = mov.movement_type
+                          .replace("_", " ")
+                          .toLowerCase()
+                          .replace(/\b\w/g, (char) => char.toUpperCase());
                         return (
                           <div
                             key={mov.id}
@@ -191,9 +183,7 @@ export function InventorySidePanel({ item, movements, loading, isOpen, onClose }
                             </div>
                             <div className="min-w-0 flex-1">
                               <p className="text-sm text-zinc-100">
-                                {mov.type === "received" && "Received"}
-                                {mov.type === "sent" && "Sent"}
-                                {mov.type === "adjusted" && "Adjusted"}{" "}
+                                {movementLabel}{" "}
                                 <span className="tabular-nums font-medium">{Math.abs(mov.quantity)}</span> units
                               </p>
                               {mov.notes && (

@@ -11,7 +11,7 @@ import { ProductImage } from "@/components/ui/product-image";
 import { ToastProvider, useToast } from "@/components/ui/toast";
 import { formatLkr } from "@/lib/currency";
 import { formatApiError } from "@/lib/format-api-error";
-import { getProducts, updateArchiveStatus, updateProduct, uploadProductImage } from "@/lib/products-api";
+import { getProducts, archiveProduct, updateProduct, uploadProductImage } from "@/lib/products-api";
 import type { Brand, Category, Product } from "@/types/products";
 
 interface ProductsPageClientProps {
@@ -27,7 +27,6 @@ function ProductsPageContent({ initialProducts, initialBrands, initialCategories
   const [categories, setCategories] = useState(initialCategories);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
-  const [includeArchived, setIncludeArchived] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [viewModalOpen, setViewModalOpen] = useState(false);
@@ -42,13 +41,11 @@ function ProductsPageContent({ initialProducts, initialBrands, initialCategories
   const [error, setError] = useState<string | null>(null);
 
   const fetchProducts = async (overrides?: {
-    include_archived?: boolean;
     search?: string;
     brand_id?: number;
     category_id?: number;
   }) => {
     return getProducts({
-      include_archived: overrides?.include_archived ?? includeArchived,
       search: overrides?.search ?? search,
       brand_id: overrides?.brand_id ?? selectedBrandId ?? undefined,
       category_id: overrides?.category_id ?? selectedCategoryId ?? undefined
@@ -113,8 +110,10 @@ function ProductsPageContent({ initialProducts, initialBrands, initialCategories
         selling_price: Number(product.selling_price),
         is_active: product.is_active,
         image_url: null,
-        is_archived: product.is_archived,
         base_unit: product.base_unit,
+        main_unit_name: product.main_unit_name,
+        base_unit_name: product.base_unit_name,
+        conversion_factor: product.conversion_factor,
         packaging_levels: []
       });
       toast.success("Product image removed.");
@@ -135,8 +134,10 @@ function ProductsPageContent({ initialProducts, initialBrands, initialCategories
         selling_price: Number(renamingProduct.selling_price),
         is_active: renamingProduct.is_active,
         image_url: renamingProduct.image_url,
-        is_archived: renamingProduct.is_archived,
         base_unit: renamingProduct.base_unit,
+        main_unit_name: renamingProduct.main_unit_name,
+        base_unit_name: renamingProduct.base_unit_name,
+        conversion_factor: renamingProduct.conversion_factor,
         packaging_levels: []
       });
       toast.success("Product renamed.");
@@ -158,8 +159,10 @@ function ProductsPageContent({ initialProducts, initialBrands, initialCategories
         selling_price: Number(changingCategoryProduct.selling_price),
         is_active: changingCategoryProduct.is_active,
         image_url: changingCategoryProduct.image_url,
-        is_archived: changingCategoryProduct.is_archived,
         base_unit: changingCategoryProduct.base_unit,
+        main_unit_name: changingCategoryProduct.main_unit_name,
+        base_unit_name: changingCategoryProduct.base_unit_name,
+        conversion_factor: changingCategoryProduct.conversion_factor,
         packaging_levels: []
       });
       toast.success("Category updated.");
@@ -180,10 +183,15 @@ function ProductsPageContent({ initialProducts, initialBrands, initialCategories
     [products, search]
   );
 
-  const onArchiveToggle = async (product: Product) => {
+  const onArchive = async (product: Product) => {
+    const confirmed = window.confirm(
+      `Archive "${product.name}"?\n\nThe product will be removed from active catalog and inventory views. Stock and movement history will be preserved.`
+    );
+    if (!confirmed) return;
+
     try {
-      await updateArchiveStatus(product.id, !product.is_archived);
-      toast.success(product.is_archived ? "Product restored." : "Product archived.");
+      await archiveProduct(product.id);
+      toast.success(`"${product.name}" archived. Manage it from Archive Manager.`);
       await reload();
     } catch (archiveError) {
       toast.error(formatApiError(archiveError instanceof Error ? archiveError.message : ""));
@@ -195,7 +203,6 @@ function ProductsPageContent({ initialProducts, initialBrands, initialCategories
       <Navbar />
       <ProductsHeader
         search={search}
-        includeArchived={includeArchived}
         selectedBrandId={selectedBrandId}
         selectedCategoryId={selectedCategoryId}
         brands={brands}
@@ -209,12 +216,6 @@ function ProductsPageContent({ initialProducts, initialBrands, initialCategories
         onCategoryChange={async (value) => {
           setSelectedCategoryId(value);
           const response = await fetchProducts({ category_id: value ?? undefined });
-          setProducts(response.items);
-        }}
-        onToggleArchived={async () => {
-          const next = !includeArchived;
-          setIncludeArchived(next);
-          const response = await fetchProducts({ include_archived: next });
           setProducts(response.items);
         }}
         onOpenCreate={openCreate}
@@ -240,7 +241,7 @@ function ProductsPageContent({ initialProducts, initialBrands, initialCategories
               key={product.id}
               product={product}
               onEdit={openEdit}
-              onArchiveToggle={onArchiveToggle}
+              onArchive={onArchive}
               onView={openView}
               onDuplicate={handleDuplicate}
               onRename={handleRename}
@@ -316,11 +317,11 @@ function ProductsPageContent({ initialProducts, initialBrands, initialCategories
                   <div className="space-y-1">
                     <p className="text-xs text-zinc-500 uppercase tracking-wide">Status</p>
                     <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
-                      viewingProduct.is_archived ? "bg-zinc-800/90 text-zinc-300" :
+                      viewingProduct.status === "ARCHIVED" ? "bg-zinc-800/90 text-zinc-300" :
                       viewingProduct.is_active ? "bg-emerald-500/20 text-emerald-300" :
                       "bg-amber-500/20 text-amber-300"
                     }`}>
-                      {viewingProduct.is_archived ? "Archived" : viewingProduct.is_active ? "Active" : "Inactive"}
+                      {viewingProduct.status === "ARCHIVED" ? "Archived" : viewingProduct.is_active ? "Active" : "Inactive"}
                     </span>
                   </div>
                   <div className="space-y-1">

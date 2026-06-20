@@ -38,8 +38,11 @@ class InventoryUnitInfo(BaseModel):
 
 class StockMovementRead(BaseModel):
     id: int
+    movement_type: str
     quantity: int
-    type: str
+    previous_quantity: int
+    new_quantity: int
+    reference: str | None
     notes: str | None
     created_at: datetime
 
@@ -65,8 +68,16 @@ class InventoryItemRead(BaseModel):
     category_name: str | None
     supplier_name: str | None = None
     image_url: str | None
+    main_unit_name: str
+    base_unit_name: str
+    conversion_factor: int
+    stock_location: str | None = None
     base_unit: str
+    quantity_base_unit: int
     stock_quantity: int
+    main_units: int
+    remaining_base_units: int
+    quantity_display: str
     max_capacity: int
     reorder_level: int
     standard_pack_size: int
@@ -107,15 +118,13 @@ class InventorySettingsUpdate(BaseModel):
     max_capacity: int | None = Field(default=None, ge=0)
     reorder_level: int | None = Field(default=None, ge=0)
     standard_pack_size: int | None = Field(default=None, ge=1)
-    supplier_name: str | None = Field(default=None, max_length=160)
-    sku: str | None = Field(default=None, max_length=80)
-    barcode: str | None = Field(default=None, max_length=120)
-    description: str | None = None
+    stock_location: str | None = Field(default=None, max_length=160)
 
 
 class InventoryStockOperation(BaseModel):
     operation: Literal["add", "remove", "adjust"]
     quantity: int = Field(ge=0)
+    reference: str | None = Field(default=None, max_length=160)
     notes: str | None = Field(default=None, max_length=500)
 
     @model_validator(mode="after")
@@ -169,4 +178,3 @@ class InventoryAnalyticsResponse(BaseModel):
     stock_health: StockHealthRead
     movement_summary: InventoryMovementSummary
     intelligence: list[InventoryIntelligenceSignal]
-

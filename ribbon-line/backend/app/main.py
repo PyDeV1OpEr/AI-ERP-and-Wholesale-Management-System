@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from app.database import Base, SessionLocal, engine
 from app.core.schema_migrations import ensure_inventory_schema
 from app.core.seed import seed_demo_data
+from app.models import product_lifecycle  # noqa: F401 — register lifecycle log table
 from app.routes.dashboard import router as dashboard_router
 from app.routes.inventory import router as inventory_router
 from app.routes.products import router as products_router

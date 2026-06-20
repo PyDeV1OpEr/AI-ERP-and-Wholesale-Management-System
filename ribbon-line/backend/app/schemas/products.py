@@ -37,6 +37,9 @@ class ProductCreate(BaseModel):
     brand_id: int = Field(gt=0, description="Brand is required")
     category_id: int | None = None
     base_unit: str = Field(default="Unit", min_length=1, max_length=80)
+    main_unit_name: str = Field(default="Box", min_length=1, max_length=80)
+    base_unit_name: str = Field(default="Unit", min_length=1, max_length=80)
+    conversion_factor: int = Field(default=1, gt=0)
     selling_price: Decimal = Field(ge=0, description="Default selling price in LKR")
     cost_price: Decimal = Field(ge=0, description="Buying price in LKR")
     image_url: str | None = None
@@ -49,15 +52,14 @@ class ProductCreate(BaseModel):
             raise ValueError("Buying price cannot be negative.")
         if self.selling_price < 0:
             raise ValueError("Selling price cannot be negative.")
+        self.main_unit_name = self.main_unit_name.strip()
+        self.base_unit_name = self.base_unit_name.strip() or self.base_unit.strip()
+        self.base_unit = self.base_unit_name
         return self
 
 
 class ProductUpdate(ProductCreate):
-    is_archived: bool = False
-
-
-class ProductArchiveUpdate(BaseModel):
-    is_archived: bool
+    pass
 
 
 class ProductUnitRead(BaseModel):
@@ -86,11 +88,16 @@ class ProductRead(BaseModel):
     category_id: int | None
     category_name: str | None
     base_unit: str
+    main_unit_name: str
+    base_unit_name: str
+    conversion_factor: int
     selling_price: Decimal
     cost_price: Decimal
     image_url: str | None
     is_active: bool
+    status: str
     is_archived: bool
+    archived_at: datetime | None = None
     packaging_summary: str
     units: list[ProductUnitRead]
     conversions: list[ProductPackagingConversionRead]

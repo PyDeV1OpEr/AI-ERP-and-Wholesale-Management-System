@@ -19,22 +19,37 @@ async function request<T>(endpoint: string, init?: RequestInit): Promise<T> {
     throw new Error(formatApiError(message || `Request failed: ${endpoint}`));
   }
 
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
   return (await response.json()) as T;
 }
 
 export async function getProducts(params?: {
-  include_archived?: boolean;
   search?: string;
   brand_id?: number;
   category_id?: number;
 }): Promise<ProductsListResponse> {
   const query = new URLSearchParams();
-  if (params?.include_archived) query.set("include_archived", "true");
   if (params?.search) query.set("search", params.search);
   if (params?.brand_id) query.set("brand_id", String(params.brand_id));
   if (params?.category_id) query.set("category_id", String(params.category_id));
   const qs = query.size ? `?${query.toString()}` : "";
   return request<ProductsListResponse>(`/products${qs}`);
+}
+
+export async function getArchivedProducts(params?: {
+  search?: string;
+  brand_id?: number;
+  category_id?: number;
+}): Promise<ProductsListResponse> {
+  const query = new URLSearchParams();
+  if (params?.search) query.set("search", params.search);
+  if (params?.brand_id) query.set("brand_id", String(params.brand_id));
+  if (params?.category_id) query.set("category_id", String(params.category_id));
+  const qs = query.size ? `?${query.toString()}` : "";
+  return request<ProductsListResponse>(`/products/archived${qs}`);
 }
 
 export async function getBrands(): Promise<Brand[]> {
@@ -66,17 +81,28 @@ export async function createProduct(payload: ProductPayload): Promise<Product> {
   });
 }
 
-export async function updateProduct(productId: number, payload: ProductPayload & { is_archived: boolean }): Promise<Product> {
+export async function updateProduct(productId: number, payload: ProductPayload): Promise<Product> {
   return request<Product>(`/products/${productId}`, {
     method: "PUT",
     body: JSON.stringify(payload)
   });
 }
 
-export async function updateArchiveStatus(productId: number, is_archived: boolean): Promise<Product> {
+export async function archiveProduct(productId: number): Promise<Product> {
   return request<Product>(`/products/${productId}/archive`, {
-    method: "PATCH",
-    body: JSON.stringify({ is_archived })
+    method: "POST"
+  });
+}
+
+export async function restoreProduct(productId: number): Promise<Product> {
+  return request<Product>(`/products/${productId}/restore`, {
+    method: "POST"
+  });
+}
+
+export async function permanentlyDeleteProduct(productId: number): Promise<void> {
+  await request<void>(`/products/${productId}`, {
+    method: "DELETE"
   });
 }
 

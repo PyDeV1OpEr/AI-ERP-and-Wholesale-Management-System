@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Boxes, LayoutDashboard, Package, Sparkles, Truck } from "lucide-react";
+import { Boxes, Archive, LayoutDashboard, Package, Sparkles, Truck } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -10,6 +10,7 @@ const items = [
   { label: "Orders", icon: Truck, href: "#" },
   { label: "Inventory", icon: Boxes, href: "/inventory" },
   { label: "Products", icon: Package, href: "/products" },
+  { label: "Archive Manager", icon: Archive, href: "/archived-products" },
   { label: "AI Center", icon: Sparkles, href: "#" }
 ];
 
