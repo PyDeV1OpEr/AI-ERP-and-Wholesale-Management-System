@@ -11,6 +11,8 @@ from app.database import Base, SessionLocal, engine
 from app.core.schema_migrations import ensure_inventory_schema
 from app.core.seed import seed_demo_data
 from app.models import product_lifecycle  # noqa: F401 — register lifecycle log table
+from app.models import customers  # noqa: F401 — register customers table
+from app.routes.customers import router as customers_router
 from app.routes.dashboard import router as dashboard_router
 from app.routes.inventory import router as inventory_router
 from app.routes.products import router as products_router
@@ -46,6 +48,7 @@ def create_app() -> FastAPI:
     app.include_router(dashboard_router)
     app.include_router(products_router)
     app.include_router(inventory_router)
+    app.include_router(customers_router)
     uploads_root = UPLOADS_DIR.parent
     uploads_root.mkdir(parents=True, exist_ok=True)
     return app
