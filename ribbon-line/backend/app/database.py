@@ -25,9 +25,20 @@ Base = declarative_base()
 
 
 def get_db():
-    """Provide a scoped DB session per request."""
+    """Provide a scoped DB session per request.
+
+    Rolls back the session if an exception occurs during request handling so the
+    session is not left in an error state for subsequent requests.
+    """
     db = SessionLocal()
     try:
         yield db
+    except Exception:
+        # Ensure any failed transaction is rolled back before closing the session.
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        raise
     finally:
         db.close()

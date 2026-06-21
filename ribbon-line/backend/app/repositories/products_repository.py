@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Sequence
 from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
@@ -24,7 +25,7 @@ class ProductsRepository:
         search: str | None,
         brand_id: int | None,
         category_id: int | None,
-    ) -> tuple[list[Product], int]:
+    ) -> tuple[Sequence[Product], int]:
         query: Select[tuple[Product]] = select(Product).options(
             selectinload(Product.brand),
             selectinload(Product.category),
@@ -33,7 +34,8 @@ class ProductsRepository:
             selectinload(Product.conversions).selectinload(ProductPackagingConversion.parent_unit),
             selectinload(Product.conversions).selectinload(ProductPackagingConversion.child_unit),
         )
-        count_query = select(func.count(Product.id))
+        # Ensure the count query has an explicit FROM so joins and filters can be applied safely.
+        count_query = select(func.count()).select_from(Product)
 
         if status:
             query = query.where(Product.status == status)
@@ -103,7 +105,7 @@ class ProductsRepository:
         self.db.add_all(conversions)
         self.db.flush()
 
-    def list_brands(self) -> list[Brand]:
+    def list_brands(self) -> Sequence[Brand]:
         return self.db.execute(select(Brand).order_by(Brand.name.asc())).scalars().all()
 
     def get_brand_by_name(self, name: str) -> Brand | None:
@@ -114,7 +116,7 @@ class ProductsRepository:
         self.db.flush()
         return brand
 
-    def list_categories(self) -> list[Category]:
+    def list_categories(self) -> Sequence[Category]:
         return self.db.execute(select(Category).order_by(Category.name.asc())).scalars().all()
 
     def get_category_by_name(self, name: str) -> Category | None:
