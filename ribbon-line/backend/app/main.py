@@ -51,6 +51,8 @@ def create_app() -> FastAPI:
     app.include_router(customers_router)
     uploads_root = UPLOADS_DIR.parent
     uploads_root.mkdir(parents=True, exist_ok=True)
+    # Serve uploaded files
+    app.mount("/uploads", StaticFiles(directory=str(uploads_root)), name="uploads")
     return app
 
 
