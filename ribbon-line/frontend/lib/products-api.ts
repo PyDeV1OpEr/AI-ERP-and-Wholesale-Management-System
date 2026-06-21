@@ -30,11 +30,15 @@ export async function getProducts(params?: {
   search?: string;
   brand_id?: number;
   category_id?: number;
+  offset?: number;
+  limit?: number;
 }): Promise<ProductsListResponse> {
   const query = new URLSearchParams();
   if (params?.search) query.set("search", params.search);
   if (params?.brand_id) query.set("brand_id", String(params.brand_id));
   if (params?.category_id) query.set("category_id", String(params.category_id));
+  if (params?.offset) query.set("offset", String(params.offset));
+  if (params?.limit) query.set("limit", String(params.limit));
   const qs = query.size ? `?${query.toString()}` : "";
   return request<ProductsListResponse>(`/products${qs}`);
 }
@@ -43,11 +47,15 @@ export async function getArchivedProducts(params?: {
   search?: string;
   brand_id?: number;
   category_id?: number;
+  offset?: number;
+  limit?: number;
 }): Promise<ProductsListResponse> {
   const query = new URLSearchParams();
   if (params?.search) query.set("search", params.search);
   if (params?.brand_id) query.set("brand_id", String(params.brand_id));
   if (params?.category_id) query.set("category_id", String(params.category_id));
+  if (params?.offset) query.set("offset", String(params.offset));
+  if (params?.limit) query.set("limit", String(params.limit));
   const qs = query.size ? `?${query.toString()}` : "";
   return request<ProductsListResponse>(`/products/archived${qs}`);
 }

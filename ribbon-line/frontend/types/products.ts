@@ -59,6 +59,8 @@ export interface Product {
 export interface ProductsListResponse {
   items: Product[];
   total: number;
+  offset: number;
+  limit: number;
 }
 
 export interface ProductPayload {

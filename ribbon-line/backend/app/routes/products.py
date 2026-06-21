@@ -26,6 +26,8 @@ def list_products(
     search: str | None = Query(None),
     brand_id: int | None = Query(None),
     category_id: int | None = Query(None),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
     return ProductsService(db).list_products(
@@ -33,6 +35,8 @@ def list_products(
         search=search,
         brand_id=brand_id,
         category_id=category_id,
+        offset=offset,
+        limit=limit,
     )
 
 
@@ -41,12 +45,16 @@ def list_archived_products(
     search: str | None = Query(None),
     brand_id: int | None = Query(None),
     category_id: int | None = Query(None),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
     return ProductsService(db).list_archived_products(
         search=search,
         brand_id=brand_id,
         category_id=category_id,
+        offset=offset,
+        limit=limit,
     )
 
 

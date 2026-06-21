@@ -56,14 +56,18 @@ class ProductsService:
         search: str | None,
         brand_id: int | None,
         category_id: int | None,
+        offset: int = 0,
+        limit: int = 50,
     ) -> ProductListResponse:
         items, total = self.repo.list_products(
             status=status,
             search=search,
             brand_id=brand_id,
             category_id=category_id,
+            offset=offset,
+            limit=limit,
         )
-        return ProductListResponse(items=[self._to_product_read(item) for item in items], total=total)
+        return ProductListResponse(items=[self._to_product_read(item) for item in items], total=total, offset=offset, limit=limit)
 
     def list_archived_products(
         self,
@@ -71,12 +75,16 @@ class ProductsService:
         search: str | None,
         brand_id: int | None,
         category_id: int | None,
+        offset: int = 0,
+        limit: int = 50,
     ) -> ProductListResponse:
         return self.list_products(
             status=ProductStatus.ARCHIVED,
             search=search,
             brand_id=brand_id,
             category_id=category_id,
+            offset=offset,
+            limit=limit,
         )
 
     def create_product(self, payload: ProductCreate) -> ProductRead:

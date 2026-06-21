@@ -25,6 +25,8 @@ class ProductsRepository:
         search: str | None,
         brand_id: int | None,
         category_id: int | None,
+        offset: int = 0,
+        limit: int = 50,
     ) -> tuple[Sequence[Product], int]:
         query: Select[tuple[Product]] = select(Product).options(
             selectinload(Product.brand),
@@ -64,6 +66,8 @@ class ProductsRepository:
             query = query.order_by(Product.archived_at.desc(), Product.updated_at.desc())
         else:
             query = query.order_by(Product.updated_at.desc())
+
+        query = query.offset(offset).limit(limit)
 
         items = self.db.execute(query).scalars().all()
         total = self.db.execute(count_query).scalar_one()

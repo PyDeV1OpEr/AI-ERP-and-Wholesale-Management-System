@@ -108,6 +108,8 @@ class ProductRead(BaseModel):
 class ProductListResponse(BaseModel):
     items: list[ProductRead]
     total: int
+    offset: int
+    limit: int
 
 
 class ProductImageUploadResponse(BaseModel):
