@@ -6,7 +6,8 @@ import { Loader2, X } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { ValidationMessage } from "@/components/ui/validation-message";
 import { formatApiError } from "@/lib/format-api-error";
-import { createCustomer, updateCustomer, type Customer } from "@/lib/customers-api";
+import { createCustomer, updateCustomer } from "@/lib/customers-api";
+import { Customer } from "@/types/customers";
 
 interface CustomerFormModalProps {
   isOpen: boolean;
@@ -27,20 +28,34 @@ export function CustomerFormModal({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     full_name: "",
+    company_name: "",
     email: "",
     phone_number: "",
+    whatsapp_number: "",
     address: "",
-    status: "ACTIVE" as "ACTIVE" | "INACTIVE" | "BLOCKED",
+    city: "",
+    country: "",
+    postal_code: "",
+    customer_type: "RETAIL" as "RETAIL" | "WHOLESALE" | "VIP" | "DISTRIBUTOR",
+    status: "ACTIVE" as "ACTIVE" | "INACTIVE" | "BLOCKED" | "VIP" | "CREDIT_HOLD",
+    credit_limit: "0",
   });
 
   useEffect(() => {
     if (isOpen) {
       setFormData({
         full_name: customer?.full_name ?? "",
+        company_name: customer?.company_name ?? "",
         email: customer?.email ?? "",
         phone_number: customer?.phone_number ?? "",
+        whatsapp_number: customer?.whatsapp_number ?? "",
         address: customer?.address ?? "",
+        city: customer?.city ?? "",
+        country: customer?.country ?? "",
+        postal_code: customer?.postal_code ?? "",
+        customer_type: customer?.customer_type ?? "RETAIL",
         status: customer?.status ?? "ACTIVE",
+        credit_limit: (customer?.credit_limit ?? 0).toString(),
       });
       setSubmitError(null);
     }
@@ -63,14 +78,27 @@ export function CustomerFormModal({
       return;
     }
 
+    const parsedCreditLimit = parseFloat(formData.credit_limit);
+    if (isNaN(parsedCreditLimit) || parsedCreditLimit < 0) {
+      setSubmitError("Credit limit must be a valid positive number");
+      return;
+    }
+
     setSaving(true);
     try {
       const payload = {
         full_name: formData.full_name.trim(),
+        company_name: formData.company_name.trim() || null,
         email: formData.email.trim() || null,
         phone_number: formData.phone_number.trim(),
+        whatsapp_number: formData.whatsapp_number.trim() || null,
         address: formData.address.trim() || null,
+        city: formData.city.trim() || null,
+        country: formData.country.trim() || null,
+        postal_code: formData.postal_code.trim() || null,
+        customer_type: formData.customer_type,
         status: formData.status,
+        credit_limit: parsedCreditLimit,
       };
 
       if (customer) {
@@ -140,38 +168,70 @@ export function CustomerFormModal({
               </button>
             </header>
 
-            <div className="flex-1 space-y-4 overflow-y-auto px-5 py-5 md:px-6">
+            <div className="flex-1 space-y-6 overflow-y-auto px-5 py-5 md:px-6">
               {submitError ? <ValidationMessage message={submitError} /> : null}
 
-              <div className="space-y-3">
-                <div>
-                  <label className="text-sm font-medium text-zinc-300">
-                    Full Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.full_name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, full_name: e.target.value })
-                    }
-                    className="mt-1 w-full rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 focus:border-violet-500 focus:outline-none"
-                    placeholder="Enter customer name"
-                  />
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-zinc-300">
+                      Full Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.full_name}
+                      onChange={(e) =>
+                        setFormData({ ...formData, full_name: e.target.value })
+                      }
+                      className="mt-1 w-full rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 focus:border-violet-500 focus:outline-none"
+                      placeholder="Enter customer name"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-zinc-300">
+                      Company Name
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.company_name}
+                      onChange={(e) =>
+                        setFormData({ ...formData, company_name: e.target.value })
+                      }
+                      className="mt-1 w-full rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 focus:border-violet-500 focus:outline-none"
+                      placeholder="Enter company name"
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label className="text-sm font-medium text-zinc-300">
-                    Phone Number *
-                  </label>
-                  <input
-                    type="tel"
-                    value={formData.phone_number}
-                    onChange={(e) =>
-                      setFormData({ ...formData, phone_number: e.target.value })
-                    }
-                    className="mt-1 w-full rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 focus:border-violet-500 focus:outline-none"
-                    placeholder="Enter phone number"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-zinc-300">
+                      Phone Number *
+                    </label>
+                    <input
+                      type="tel"
+                      value={formData.phone_number}
+                      onChange={(e) =>
+                        setFormData({ ...formData, phone_number: e.target.value })
+                      }
+                      className="mt-1 w-full rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 focus:border-violet-500 focus:outline-none"
+                      placeholder="Enter phone number"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-zinc-300">
+                      WhatsApp Number
+                    </label>
+                    <input
+                      type="tel"
+                      value={formData.whatsapp_number}
+                      onChange={(e) =>
+                        setFormData({ ...formData, whatsapp_number: e.target.value })
+                      }
+                      className="mt-1 w-full rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 focus:border-violet-500 focus:outline-none"
+                      placeholder="Enter WhatsApp number"
+                    />
+                  </div>
                 </div>
 
                 <div>
@@ -185,7 +245,7 @@ export function CustomerFormModal({
                       setFormData({ ...formData, email: e.target.value })
                     }
                     className="mt-1 w-full rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 focus:border-violet-500 focus:outline-none"
-                    placeholder="Enter email"
+                    placeholder="Enter email address"
                   />
                 </div>
 
@@ -193,38 +253,120 @@ export function CustomerFormModal({
                   <label className="text-sm font-medium text-zinc-300">
                     Address
                   </label>
-                  <textarea
+                  <input
+                    type="text"
                     value={formData.address}
                     onChange={(e) =>
                       setFormData({ ...formData, address: e.target.value })
                     }
-                    rows={3}
                     className="mt-1 w-full rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 focus:border-violet-500 focus:outline-none"
-                    placeholder="Enter address"
+                    placeholder="Enter street address"
                   />
                 </div>
 
-                <div>
-                  <label className="text-sm font-medium text-zinc-300">
-                    Status
-                  </label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        status: e.target.value as
-                          | "ACTIVE"
-                          | "INACTIVE"
-                          | "BLOCKED",
-                      })
-                    }
-                    className="mt-1 w-full rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2.5 text-sm text-zinc-100 focus:border-violet-500 focus:outline-none"
-                  >
-                    <option value="ACTIVE">Active</option>
-                    <option value="INACTIVE">Inactive</option>
-                    <option value="BLOCKED">Blocked</option>
-                  </select>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-zinc-300">
+                      City
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.city}
+                      onChange={(e) =>
+                        setFormData({ ...formData, city: e.target.value })
+                      }
+                      className="mt-1 w-full rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 focus:border-violet-500 focus:outline-none"
+                      placeholder="City"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-zinc-300">
+                      Country
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.country}
+                      onChange={(e) =>
+                        setFormData({ ...formData, country: e.target.value })
+                      }
+                      className="mt-1 w-full rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 focus:border-violet-500 focus:outline-none"
+                      placeholder="Country"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-zinc-300">
+                      Postal Code
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.postal_code}
+                      onChange={(e) =>
+                        setFormData({ ...formData, postal_code: e.target.value })
+                      }
+                      className="mt-1 w-full rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 focus:border-violet-500 focus:outline-none"
+                      placeholder="Code"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 border-t border-white/10 pt-4 mt-2">
+                  <div>
+                    <label className="text-sm font-medium text-zinc-300">
+                      Customer Type
+                    </label>
+                    <select
+                      value={formData.customer_type}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          customer_type: e.target.value as any,
+                        })
+                      }
+                      className="mt-1 w-full rounded-xl border border-white/10 bg-[#0D0D12] px-3 py-2.5 text-sm text-zinc-100 focus:border-violet-500 focus:outline-none"
+                    >
+                      <option value="RETAIL">Retail</option>
+                      <option value="WHOLESALE">Wholesale</option>
+                      <option value="DISTRIBUTOR">Distributor</option>
+                      <option value="VIP">VIP</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-zinc-300">
+                      Status
+                    </label>
+                    <select
+                      value={formData.status}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          status: e.target.value as any,
+                        })
+                      }
+                      className="mt-1 w-full rounded-xl border border-white/10 bg-[#0D0D12] px-3 py-2.5 text-sm text-zinc-100 focus:border-violet-500 focus:outline-none"
+                    >
+                      <option value="ACTIVE">Active</option>
+                      <option value="INACTIVE">Inactive</option>
+                      <option value="VIP">VIP</option>
+                      <option value="CREDIT_HOLD">Credit Hold</option>
+                      <option value="BLOCKED">Blocked</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-zinc-300">
+                      Credit Limit
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={formData.credit_limit}
+                      onChange={(e) =>
+                        setFormData({ ...formData, credit_limit: e.target.value })
+                      }
+                      className="mt-1 w-full rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 focus:border-violet-500 focus:outline-none"
+                      placeholder="0.00"
+                    />
+                  </div>
                 </div>
               </div>
             </div>

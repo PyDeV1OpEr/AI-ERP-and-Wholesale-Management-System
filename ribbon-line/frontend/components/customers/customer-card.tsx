@@ -1,9 +1,9 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Eye, SquarePen, Trash2 } from "lucide-react";
+import { SquarePen, Trash2 } from "lucide-react";
 import { formatLkr } from "@/lib/currency";
-import type { Customer } from "@/lib/customers-api";
+import type { Customer } from "@/types/customers";
 
 interface CustomerCardProps {
   customer: Customer;
@@ -15,24 +15,39 @@ interface CustomerCardProps {
 export function CustomerCard({ customer, onView, onEdit, onDelete }: CustomerCardProps) {
   const statusLabel = {
     ACTIVE: "Active",
+    VIP: "VIP",
+    CREDIT_HOLD: "Credit Hold",
     INACTIVE: "Inactive",
     BLOCKED: "Blocked",
-  }[customer.status];
+  }[customer.status] || customer.status;
 
   const statusClass = {
     ACTIVE: "bg-emerald-500/20 text-emerald-300",
+    VIP: "bg-fuchsia-500/20 text-fuchsia-300",
+    CREDIT_HOLD: "bg-orange-500/20 text-orange-300",
     INACTIVE: "bg-amber-500/20 text-amber-300",
     BLOCKED: "bg-red-500/20 text-red-300",
-  }[customer.status];
+  }[customer.status] || "bg-zinc-500/20 text-zinc-300";
 
   return (
     <motion.article
       layout
       whileHover={{ y: -4 }}
-      className="group relative flex h-full min-h-[220px] flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] p-4"
+      onClick={() => onView(customer)}
+      className="group relative flex h-full min-h-[220px] flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] p-4 cursor-pointer hover:bg-white/[0.05] transition-colors"
     >
-      {/* Status Badge */}
+      {/* Header Strip */}
       <div className="mb-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          {customer.customer_code && (
+            <span className="text-xs font-medium text-zinc-500">
+              {customer.customer_code}
+            </span>
+          )}
+          <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wider text-zinc-300">
+            {customer.customer_type}
+          </span>
+        </div>
         <span
           className={`rounded-full px-3 py-1 text-xs font-medium backdrop-blur-sm ${statusClass}`}
         >
@@ -43,45 +58,42 @@ export function CustomerCard({ customer, onView, onEdit, onDelete }: CustomerCar
       {/* Customer Info */}
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="space-y-1">
-          <p className="line-clamp-2 text-sm font-semibold leading-snug text-zinc-100">
+          <p className="line-clamp-2 text-base font-bold leading-snug text-zinc-100">
             {customer.full_name}
           </p>
-          {customer.email && (
-            <p className="truncate text-xs text-zinc-400">{customer.email}</p>
+          {customer.company_name && (
+            <p className="truncate text-sm text-zinc-300">{customer.company_name}</p>
           )}
-          <p className="truncate text-xs text-zinc-400">{customer.phone_number}</p>
-          {customer.address && (
-            <p className="truncate text-xs text-zinc-500">{customer.address}</p>
+          <p className="truncate text-xs text-zinc-400 mt-2">{customer.phone_number}</p>
+          {(customer.city || customer.country) && (
+            <p className="truncate text-xs text-zinc-500">
+              {[customer.city, customer.country].filter(Boolean).join(", ")}
+            </p>
           )}
         </div>
 
-        {/* Financials */}
-        <div className="mt-auto space-y-0.5 pt-3">
-          <p className="text-sm font-semibold tabular-nums text-violet-200">
-            {formatLkr(customer.total_spent)}
-          </p>
-          <p className="text-xs tabular-nums text-zinc-500">
-            {customer.total_orders_count} Orders
-          </p>
-          {customer.last_order_date && (
-            <p className="text-xs tabular-nums text-zinc-500">
-              Last order: {new Date(customer.last_order_date).toLocaleDateString()}
-            </p>
-          )}
+        {/* Financials (Using total_spent for now if balance isn't directly available in list) */}
+        <div className="mt-auto space-y-0.5 pt-4">
+          <div className="flex justify-between items-end">
+            <div>
+              <p className="text-xs text-zinc-500 mb-0.5">Total Spent</p>
+              <p className="text-sm font-semibold tabular-nums text-violet-200">
+                {formatLkr(customer.total_spent)}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-zinc-500 mb-0.5">Credit Limit</p>
+              <p className="text-sm font-medium tabular-nums text-zinc-300">
+                {formatLkr(customer.credit_limit || 0)}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Hover Actions */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 translate-y-4 opacity-0 transition duration-200 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100">
-        <div className="m-3 flex items-center justify-end gap-2 rounded-xl border border-white/10 bg-[#0B0B0F]/95 p-2 backdrop-blur">
-          <button
-            type="button"
-            onClick={() => onView(customer)}
-            className="rounded-lg p-2 text-zinc-300 hover:bg-white/10 hover:text-white"
-            aria-label="View customer"
-          >
-            <Eye className="h-4 w-4" />
-          </button>
+      <div className="absolute top-2 right-2 opacity-0 transition duration-200 group-hover:opacity-100">
+        <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-[#0B0B0F]/95 p-1 backdrop-blur" onClick={(e) => e.stopPropagation()}>
           <button
             type="button"
             onClick={() => onEdit(customer)}

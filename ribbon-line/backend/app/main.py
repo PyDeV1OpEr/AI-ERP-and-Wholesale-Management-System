@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.database import Base, SessionLocal, engine
-from app.core.schema_migrations import ensure_inventory_schema
+from app.core.schema_migrations import ensure_inventory_schema, ensure_customer_schema
 from app.core.seed import seed_demo_data
 from app.models import product_lifecycle  # noqa: F401 — register lifecycle log table
 from app.models import customers  # noqa: F401 — register customers table
@@ -59,6 +59,7 @@ def create_app() -> FastAPI:
 app = create_app()
 Base.metadata.create_all(bind=engine)
 ensure_inventory_schema(engine)
+ensure_customer_schema(engine)
 
 if os.getenv("SEED_DEMO_DATA", "").lower() in {"1", "true", "yes"}:
     db = SessionLocal()

@@ -156,3 +156,48 @@ def ensure_inventory_schema(engine: Engine) -> None:
 
         for statement in INVENTORY_INDEXES:
             conn.execute(text(statement))
+
+CUSTOMER_COLUMNS: dict[str, str] = {
+    "customer_code": "VARCHAR(20)",
+    "customer_type": "VARCHAR(20) NOT NULL DEFAULT 'RETAIL'",
+    "credit_limit": "NUMERIC(14, 2) NOT NULL DEFAULT 0",
+    "company_name": "VARCHAR(200)",
+    "whatsapp_number": "VARCHAR(50)",
+    "city": "VARCHAR(100)",
+    "country": "VARCHAR(100)",
+    "postal_code": "VARCHAR(20)",
+}
+
+def ensure_customer_schema(engine: Engine) -> None:
+    inspector = inspect(engine)
+    existing_tables = set(inspector.get_table_names())
+    if "customers" not in existing_tables:
+        return
+
+    existing_columns = {column["name"] for column in inspector.get_columns("customers")}
+    with engine.begin() as conn:
+        for column_name, ddl_type in CUSTOMER_COLUMNS.items():
+            if column_name not in existing_columns:
+                conn.execute(text(f"ALTER TABLE customers ADD COLUMN {column_name} {ddl_type}"))
+
+        # Populate customer_code for existing records to ensure uniqueness
+        conn.execute(
+            text(
+                """
+                UPDATE customers 
+                SET customer_code = printf('CUS-%04d', id) 
+                WHERE customer_code IS NULL
+                """
+            )
+        )
+
+        # Create the unique index separately
+        conn.execute(
+            text(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS ix_customers_code 
+                ON customers (customer_code)
+                """
+            )
+        )
+
