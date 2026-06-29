@@ -86,7 +86,7 @@ function CustomerProfileContent({ initialProfile }: CustomerProfileClientProps) 
             {activeTab === "transactions" && <CustomerTransactionsTab customerId={profile.customer.id} onUpdated={refreshProfile} />}
             {activeTab === "ledger" && <CustomerLedgerTab customerId={profile.customer.id} />}
             {activeTab === "cheques" && <CustomerChequesTab customerId={profile.customer.id} onUpdated={refreshProfile} />}
-            {activeTab === "orders" && <CustomerOrdersTab />}
+            {activeTab === "orders" && <CustomerOrdersTab customerId={profile.customer.id} />}
             {activeTab === "invoices" && <CustomerInvoicesTab />}
             {activeTab === "payments" && <CustomerPaymentsTab />}
             {activeTab === "notes" && <CustomerNotesTab customerId={profile.customer.id} onUpdated={refreshProfile} />}

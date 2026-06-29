@@ -33,6 +33,8 @@ export type ProductStatus = "ACTIVE" | "ARCHIVED" | "DELETED";
 
 export interface Product {
   id: number;
+  sku: string | null;
+  barcode: string | null;
   name: string;
   brand_id: number;
   brand_name: string;
@@ -42,6 +44,9 @@ export interface Product {
   main_unit_name: string;
   base_unit_name: string;
   conversion_factor: number;
+  stock_quantity: number;
+  reserved_stock_quantity: number;
+  available_stock_quantity: number;
   selling_price: string;
   cost_price: string;
   image_url: string | null;

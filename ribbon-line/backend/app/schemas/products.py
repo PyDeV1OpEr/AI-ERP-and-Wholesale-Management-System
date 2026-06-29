@@ -82,6 +82,8 @@ class ProductPackagingConversionRead(BaseModel):
 
 class ProductRead(BaseModel):
     id: int
+    sku: str | None
+    barcode: str | None
     name: str
     brand_id: int
     brand_name: str
@@ -91,6 +93,9 @@ class ProductRead(BaseModel):
     main_unit_name: str
     base_unit_name: str
     conversion_factor: int
+    stock_quantity: int
+    reserved_stock_quantity: int
+    available_stock_quantity: int
     selling_price: Decimal
     cost_price: Decimal
     image_url: str | None

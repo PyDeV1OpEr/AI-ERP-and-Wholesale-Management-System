@@ -84,6 +84,9 @@ class Customer(Base):
     activity_logs: Mapped[list[CustomerActivityLog]] = relationship(
         "CustomerActivityLog", back_populates="customer", cascade="all, delete-orphan"
     )
+    orders: Mapped[list["Order"]] = relationship(
+        "Order", back_populates="customer", cascade="all, delete-orphan"
+    )
 
 
 class CustomerTransaction(Base):

@@ -66,6 +66,7 @@ class Product(Base):
     archived_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     stock_quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    reserved_stock_quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     max_capacity: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     reorder_level: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     standard_pack_size: Mapped[int] = mapped_column(Integer, nullable=False, default=1)

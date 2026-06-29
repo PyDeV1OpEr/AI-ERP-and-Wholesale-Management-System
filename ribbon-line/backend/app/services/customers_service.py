@@ -63,6 +63,12 @@ class CustomersService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
         return self._to_customer_read(customer)
 
+    def get_customer_summary(self, customer_id: int) -> CustomerSummary:
+        customer = self.repo.get_customer(customer_id)
+        if not customer:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
+        return CustomerSummary.model_validate(customer)
+
     def _generate_customer_code(self) -> str:
         # Simple implementation: get count and append. In prod, might use a sequence table
         from sqlalchemy import select, func

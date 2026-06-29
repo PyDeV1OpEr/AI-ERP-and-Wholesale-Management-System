@@ -13,6 +13,7 @@ PRODUCT_COLUMNS: dict[str, str] = {
     "base_unit_name": "VARCHAR(80) NOT NULL DEFAULT 'Unit'",
     "conversion_factor": "INTEGER NOT NULL DEFAULT 1",
     "stock_location": "VARCHAR(160)",
+    "reserved_stock_quantity": "INTEGER NOT NULL DEFAULT 0",
     "max_capacity": "INTEGER NOT NULL DEFAULT 0",
     "standard_pack_size": "INTEGER NOT NULL DEFAULT 1",
     "total_units_sold": "INTEGER NOT NULL DEFAULT 0",
@@ -21,6 +22,10 @@ PRODUCT_COLUMNS: dict[str, str] = {
     "status": "VARCHAR(16) NOT NULL DEFAULT 'ACTIVE'",
     "archived_at": "DATETIME",
     "deleted_at": "DATETIME",
+}
+
+ORDER_ITEM_COLUMNS: dict[str, str] = {
+    "reserved_quantity_base": "INTEGER NOT NULL DEFAULT 0",
 }
 
 STOCK_MOVEMENT_COLUMNS: dict[str, str] = {
@@ -201,3 +206,15 @@ def ensure_customer_schema(engine: Engine) -> None:
             )
         )
 
+
+def ensure_order_schema(engine: Engine) -> None:
+    inspector = inspect(engine)
+    existing_tables = set(inspector.get_table_names())
+    if "order_items" not in existing_tables:
+        return
+
+    existing_columns = {column["name"] for column in inspector.get_columns("order_items")}
+    with engine.begin() as conn:
+        for column_name, ddl_type in ORDER_ITEM_COLUMNS.items():
+            if column_name not in existing_columns:
+                conn.execute(text(f"ALTER TABLE order_items ADD COLUMN {column_name} {ddl_type}"))

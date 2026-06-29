@@ -331,6 +331,8 @@ class ProductsService:
         ]
         return ProductRead(
             id=product.id,
+            sku=product.sku,
+            barcode=product.barcode,
             name=product.name,
             brand_id=product.brand_id,
             brand_name=product.brand.name,
@@ -340,6 +342,9 @@ class ProductsService:
             main_unit_name=product.main_unit_name,
             base_unit_name=product.base_unit_name,
             conversion_factor=product.conversion_factor,
+            stock_quantity=product.stock_quantity,
+            reserved_stock_quantity=product.reserved_stock_quantity,
+            available_stock_quantity=max(0, (product.stock_quantity or 0) - (product.reserved_stock_quantity or 0)),
             selling_price=product.selling_price,
             cost_price=product.cost_price,
             image_url=to_public_image_url(product.image_url),

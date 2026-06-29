@@ -8,7 +8,7 @@ import { usePathname } from "next/navigation";
 const items = [
   { label: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
   { label: "Customers", icon: Users, href: "/customers" },
-  { label: "Orders", icon: Truck, href: "#" },
+  { label: "Orders", icon: Truck, href: "/orders" },
   { label: "Inventory", icon: Boxes, href: "/inventory" },
   { label: "Products", icon: Package, href: "/products" },
   { label: "Archive Manager", icon: Archive, href: "/archived-products" },
