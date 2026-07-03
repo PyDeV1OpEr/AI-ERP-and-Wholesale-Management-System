@@ -10,7 +10,7 @@ export interface OrderItem {
   remainingQuantity: number;
   unitPrice: string;
   totalPrice: string;
-  status: "PENDING" | "RESERVED" | "DELIVERED" | "OUT_OF_STOCK";
+  status: "PENDING" | "DELIVERED" | "OUT_OF_STOCK";
   createdAt: string;
   updatedAt: string;
 }
@@ -20,7 +20,7 @@ export interface Order {
   orderNumber: string;
   customerId: number;
   customerName: string | null;
-  status: "PENDING" | "RESERVED" | "DELIVERED" | "COMPLETED";
+  status: "PENDING" | "COMPLETED";
   totalAmount: string;
   notes: string | null;
   createdBy: string | null;

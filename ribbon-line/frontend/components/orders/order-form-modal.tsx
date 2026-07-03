@@ -2,13 +2,15 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Loader2, PackagePlus, Plus, Trash2, X } from "lucide-react";
+import { Loader2, PackagePlus, Plus, Trash2, X, Check, Search } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { ValidationMessage } from "@/components/ui/validation-message";
 import { formatApiError } from "@/lib/format-api-error";
 import { getCustomers } from "@/lib/customers-api";
 import { getProducts } from "@/lib/products-api";
 import { createOrder } from "@/lib/orders-api";
+import { convertInventory } from "@/lib/inventory-conversion";
+import { formatLkr } from "@/lib/currency";
 import { Customer } from "@/types/customers";
 import { Product } from "@/types/products";
 import { OrderItemCreate } from "@/types/orders";
@@ -32,11 +34,13 @@ export function OrderFormModal({ isOpen, onClose, onSaved }: OrderFormModalProps
   const [selectedCustomer, setSelectedCustomer] = useState<number | null>(null);
   const [customerSearch, setCustomerSearch] = useState("");
   const [productSearch, setProductSearch] = useState("");
-  const [draftProductId, setDraftProductId] = useState<number | null>(null);
+  const [showProductDropdown, setShowProductDropdown] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [draftUnit, setDraftUnit] = useState("Main");
   const [draftQuantity, setDraftQuantity] = useState(1);
   const [notes, setNotes] = useState("");
   const [items, setItems] = useState<OrderItemCreate[]>([]);
+  const productSearchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -49,7 +53,6 @@ export function OrderFormModal({ isOpen, onClose, onSaved }: OrderFormModalProps
         ]);
         setCustomers(customersRes.items);
         setProducts(productsRes.items);
-        setDraftProductId(productsRes.items[0]?.id ?? null);
       } catch (err) {
         setSubmitError(formatApiError(err instanceof Error ? err.message : ""));
       } finally {
@@ -60,6 +63,7 @@ export function OrderFormModal({ isOpen, onClose, onSaved }: OrderFormModalProps
     setSelectedCustomer(null);
     setCustomerSearch("");
     setProductSearch("");
+    setSelectedProduct(null);
     setDraftUnit("Main");
     setDraftQuantity(1);
     setNotes("");
@@ -77,8 +81,17 @@ export function OrderFormModal({ isOpen, onClose, onSaved }: OrderFormModalProps
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [isOpen, onClose]);
 
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (productSearchInputRef.current && !productSearchInputRef.current.contains(event.target as Node)) {
+        setShowProductDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const selectedCustomerData = customers.find((customer) => customer.id === selectedCustomer) ?? null;
-  const draftProduct = products.find((product) => product.id === draftProductId) ?? null;
 
   const filteredCustomers = useMemo(() => {
     const needle = customerSearch.trim().toLowerCase();
@@ -106,9 +119,24 @@ export function OrderFormModal({ isOpen, onClose, onSaved }: OrderFormModalProps
     return Array.from(units).filter(Boolean);
   };
 
+  const formatStockDisplay = (product: Product) => {
+    const availableQty = product.available_stock_quantity ?? product.stock_quantity;
+    try {
+      const conversion = convertInventory({
+        quantity: availableQty,
+        conversionFactor: product.conversion_factor,
+        mainUnitName: product.main_unit_name,
+        baseUnitName: product.base_unit_name,
+      });
+      return conversion.display;
+    } catch (e) {
+      return `${availableQty}`;
+    }
+  };
+
   const addItem = () => {
     setSubmitError(null);
-    if (!draftProductId) {
+    if (!selectedProduct) {
       setSubmitError("Please select a product");
       return;
     }
@@ -117,14 +145,16 @@ export function OrderFormModal({ isOpen, onClose, onSaved }: OrderFormModalProps
       return;
     }
     const duplicate = items.some(
-      (item) => item.productId === draftProductId && item.unit.toLowerCase() === draftUnit.toLowerCase()
+      (item) => item.productId === selectedProduct.id && item.unit.toLowerCase() === draftUnit.toLowerCase()
     );
     if (duplicate) {
       setSubmitError("This product and unit is already in the order");
       return;
     }
-    setItems([...items, { productId: draftProductId, unit: draftUnit, requestedQuantity: draftQuantity }]);
+    setItems([...items, { productId: selectedProduct.id, unit: draftUnit, requestedQuantity: draftQuantity }]);
     setDraftQuantity(1);
+    setProductSearch("");
+    setSelectedProduct(null);
   };
 
   const removeItem = (index: number) => {
@@ -195,7 +225,7 @@ export function OrderFormModal({ isOpen, onClose, onSaved }: OrderFormModalProps
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 16 }}
             transition={{ duration: 0.2 }}
-            className="relative z-10 flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0D0D12] shadow-2xl"
+            className="relative z-10 flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0D0D12] shadow-2xl"
           >
             <header className="flex items-center justify-between border-b border-white/10 px-5 py-4 md:px-6">
               <div>
@@ -216,6 +246,7 @@ export function OrderFormModal({ isOpen, onClose, onSaved }: OrderFormModalProps
                 </div>
               ) : (
                 <>
+                  {/* Customer Section */}
                   <section className="grid gap-3 md:grid-cols-[1fr_1.2fr]">
                     <div>
                       <label className="text-sm font-medium text-zinc-300">Search Customer *</label>
@@ -248,69 +279,140 @@ export function OrderFormModal({ isOpen, onClose, onSaved }: OrderFormModalProps
                     </div>
                   </section>
 
-                  <section className="space-y-3">
-                    <div className="grid gap-3 md:grid-cols-[1fr_1.3fr_160px_120px_auto] md:items-end">
-                      <div>
-                        <label className="text-sm font-medium text-zinc-300">Search Product</label>
-                        <input
-                          value={productSearch}
-                          onChange={(event) => setProductSearch(event.target.value)}
-                          className="mt-1 w-full rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 focus:border-violet-500 focus:outline-none"
-                          placeholder="Product, SKU, brand"
-                        />
+                  {/* Product Selection Section */}
+                  <section className="space-y-4">
+                    {/* Product Search */}
+                    <div className="space-y-3">
+                      <div className="relative">
+                        <label className="text-sm font-medium text-zinc-300">Product Search *</label>
+                        <div className="relative mt-1">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
+                          <input
+                            ref={productSearchInputRef}
+                            value={selectedProduct ? `${selectedProduct.name}${selectedProduct.sku ? ` (${selectedProduct.sku})` : ""}` : productSearch}
+                            onClick={() => {
+                              setShowProductDropdown(true);
+                              if (selectedProduct) {
+                                setProductSearch("");
+                                setSelectedProduct(null);
+                              }
+                            }}
+                            onChange={(e) => {
+                              setProductSearch(e.target.value);
+                              setSelectedProduct(null);
+                              setShowProductDropdown(true);
+                            }}
+                            onFocus={() => setShowProductDropdown(true)}
+                            className="w-full rounded-xl border border-white/10 bg-white/[0.02] pl-10 pr-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 focus:border-violet-500 focus:outline-none"
+                            placeholder="Search products by name, SKU, brand..."
+                          />
+                          {showProductDropdown && (
+                            <div className="absolute z-10 mt-2 w-full rounded-xl border border-white/10 bg-[#0D0D12] shadow-lg max-h-[300px] overflow-y-auto">
+                              {filteredProducts.length > 0 ? (
+                                filteredProducts.map((product) => (
+                                  <div
+                                    key={product.id}
+                                    onClick={() => {
+                                      setSelectedProduct(product);
+                                      setShowProductDropdown(false);
+                                      setProductSearch("");
+                                      setDraftUnit(productUnits(product)[0] ?? "Main");
+                                    }}
+                                    className="px-4 py-3 hover:bg-white/10 cursor-pointer transition-colors"
+                                  >
+                                    <div className="flex justify-between items-start">
+                                      <div>
+                                        <p className="text-sm font-medium text-zinc-100">{product.name}</p>
+                                        <p className="text-xs text-zinc-500">
+                                          {product.sku}
+                                          {product.brand_name ? ` · ${product.brand_name}` : ""}
+                                        </p>
+                                      </div>
+                                      <span className="text-xs text-emerald-300">
+                                        {formatStockDisplay(product)}
+                                      </span>
+                                    </div>
+                                    <div className="mt-1 flex gap-4 text-xs text-zinc-500">
+                                      {product.category_name && <span>Cat: {product.category_name}</span>}
+                                      <span>Wholesale: {formatLkr(product.selling_price)}</span>
+                                      {product.retail_price && (
+                                        <span>Retail: {formatLkr(product.retail_price)}</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="px-4 py-6 text-center text-zinc-500 text-sm">No products found</div>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <div>
-                        <label className="text-sm font-medium text-zinc-300">Product *</label>
-                        <select
-                          value={draftProductId ?? ""}
-                          onChange={(event) => {
-                            const productId = event.target.value ? Number(event.target.value) : null;
-                            setDraftProductId(productId);
-                            const product = products.find((item) => item.id === productId) ?? null;
-                            setDraftUnit(productUnits(product)[0] ?? "Main");
-                          }}
-                          className="mt-1 w-full rounded-xl border border-white/10 bg-[#0D0D12] px-3 py-2.5 text-sm text-zinc-100 focus:border-violet-500 focus:outline-none"
+
+                      {/* Selected Product Card */}
+                      {selectedProduct && (
+                        <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+                          <div className="grid gap-4 md:grid-cols-2">
+                            <div>
+                              <p className="text-sm font-semibold text-zinc-100">{selectedProduct.name}</p>
+                              {selectedProduct.sku && (
+                                <p className="text-xs text-zinc-500 mt-1">SKU: {selectedProduct.sku}</p>
+                              )}
+                              <p className="text-xs text-emerald-300 mt-2">Available: {formatStockDisplay(selectedProduct)}</p>
+                            </div>
+                            <div className="space-y-2">
+                              <div className="flex gap-4 text-xs text-zinc-400">
+                                {selectedProduct.brand_name && <span>Brand: {selectedProduct.brand_name}</span>}
+                                {selectedProduct.category_name && <span>Category: {selectedProduct.category_name}</span>}
+                              </div>
+                              <div className="flex gap-4 text-xs">
+                                <span className="text-violet-300">Wholesale: {formatLkr(selectedProduct.selling_price)}</span>
+                                {selectedProduct.retail_price && (
+                                  <span className="text-zinc-500">Retail: {formatLkr(selectedProduct.retail_price)}</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Quantity & Unit */}
+                      <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto] items-end">
+                        <div>
+                          <label className="text-sm font-medium text-zinc-300">Unit *</label>
+                          <select
+                            value={draftUnit}
+                            onChange={(event) => setDraftUnit(event.target.value)}
+                            className="mt-1 w-full rounded-xl border border-white/10 bg-[#0D0D12] px-3 py-2.5 text-sm text-zinc-100 focus:border-violet-500 focus:outline-none"
+                          >
+                            {productUnits(selectedProduct).map((unit) => (
+                              <option key={unit} value={unit}>{unit}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-zinc-300">Quantity *</label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={draftQuantity}
+                            onChange={(event) => setDraftQuantity(Number(event.target.value))}
+                            className="mt-1 w-full rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2.5 text-sm text-zinc-100 focus:border-violet-500 focus:outline-none"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={addItem}
+                          disabled={!selectedProduct}
+                          className="inline-flex items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          <option value="">Select product</option>
-                          {filteredProducts.map((product) => (
-                            <option key={product.id} value={product.id}>
-                              {product.name}{product.sku ? ` (${product.sku})` : ""} · Available {product.available_stock_quantity ?? product.stock_quantity}
-                            </option>
-                          ))}
-                        </select>
+                          <Plus className="h-4 w-4" />
+                          Add
+                        </button>
                       </div>
-                      <div>
-                        <label className="text-sm font-medium text-zinc-300">Unit *</label>
-                        <select
-                          value={draftUnit}
-                          onChange={(event) => setDraftUnit(event.target.value)}
-                          className="mt-1 w-full rounded-xl border border-white/10 bg-[#0D0D12] px-3 py-2.5 text-sm text-zinc-100 focus:border-violet-500 focus:outline-none"
-                        >
-                          {productUnits(draftProduct).map((unit) => (
-                            <option key={unit} value={unit}>{unit}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-zinc-300">Quantity *</label>
-                        <input
-                          type="number"
-                          min="1"
-                          value={draftQuantity}
-                          onChange={(event) => setDraftQuantity(Number(event.target.value))}
-                          className="mt-1 w-full rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2.5 text-sm text-zinc-100 focus:border-violet-500 focus:outline-none"
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={addItem}
-                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-violet-500"
-                      >
-                        <Plus className="h-4 w-4" />
-                        Add
-                      </button>
                     </div>
 
+                    {/* Order Items Table */}
                     <div className="overflow-x-auto rounded-xl border border-white/10">
                       <table className="w-full text-left text-sm">
                         <thead className="bg-white/[0.03] text-xs uppercase text-zinc-500">
@@ -318,9 +420,6 @@ export function OrderFormModal({ isOpen, onClose, onSaved }: OrderFormModalProps
                             <th className="px-4 py-3">Product</th>
                             <th className="px-4 py-3">Unit</th>
                             <th className="px-4 py-3">Requested</th>
-                            <th className="px-4 py-3">Delivered</th>
-                            <th className="px-4 py-3">Remaining</th>
-                            <th className="px-4 py-3">Status</th>
                             <th className="px-4 py-3 text-right">Actions</th>
                           </tr>
                         </thead>
@@ -350,9 +449,6 @@ export function OrderFormModal({ isOpen, onClose, onSaved }: OrderFormModalProps
                                     className="w-24 rounded-lg border border-white/10 bg-white/[0.02] px-2 py-1 text-xs text-zinc-100 focus:border-violet-500 focus:outline-none"
                                   />
                                 </td>
-                                <td className="px-4 py-3 text-zinc-500">0</td>
-                                <td className="px-4 py-3 text-zinc-300">{item.requestedQuantity}</td>
-                                <td className="px-4 py-3 text-amber-300">Pending</td>
                                 <td className="px-4 py-3 text-right">
                                   <button
                                     type="button"
@@ -368,7 +464,7 @@ export function OrderFormModal({ isOpen, onClose, onSaved }: OrderFormModalProps
                           })}
                           {items.length === 0 ? (
                             <tr>
-                              <td colSpan={7} className="px-4 py-10 text-center text-zinc-500">
+                              <td colSpan={4} className="px-4 py-10 text-center text-zinc-500">
                                 <PackagePlus className="mx-auto mb-2 h-6 w-6 text-zinc-600" />
                                 Add products to build this wholesale order.
                               </td>
@@ -379,6 +475,7 @@ export function OrderFormModal({ isOpen, onClose, onSaved }: OrderFormModalProps
                     </div>
                   </section>
 
+                  {/* Notes */}
                   <div>
                     <label className="text-sm font-medium text-zinc-300">Notes</label>
                     <textarea

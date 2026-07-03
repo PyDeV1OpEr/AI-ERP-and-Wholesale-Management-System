@@ -26,7 +26,7 @@ class OrderItemCreate(OrderSchema):
 
 class OrderItemUpdate(OrderSchema):
     delivered_quantity: int | None = Field(None, ge=0)
-    status: str | None = Field(None, pattern="^(PENDING|RESERVED|DELIVERED|OUT_OF_STOCK)$")
+    status: str | None = Field(None, pattern="^(PENDING|DELIVERED|OUT_OF_STOCK)$")
     unit: str | None = Field(None, min_length=1, max_length=80)
     requested_quantity: int | None = Field(None, gt=0)
 
@@ -68,7 +68,7 @@ class OrderCreate(OrderSchema):
 
 
 class OrderUpdate(OrderSchema):
-    status: str | None = Field(None, pattern="^(PENDING|RESERVED|DELIVERED|COMPLETED)$")
+    status: str | None = Field(None, pattern="^(PENDING|COMPLETED)$")
     notes: str | None = None
 
 

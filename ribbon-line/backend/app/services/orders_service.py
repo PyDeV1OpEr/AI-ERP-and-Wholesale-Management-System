@@ -128,20 +128,6 @@ class OrdersService:
         if payload.status is not None:
             if payload.status == OrderStatus.COMPLETED:
                 return self.complete_order(order_id)
-            if payload.status == OrderStatus.RESERVED:
-                for item in order.items:
-                    if item.status == OrderItemStatus.PENDING:
-                        self._reserve_item(order, item)
-            elif payload.status == OrderStatus.DELIVERED:
-                for item in order.items:
-                    if item.status in {OrderItemStatus.PENDING, OrderItemStatus.RESERVED}:
-                        delivered_quantity = item.delivered_quantity or item.requested_quantity
-                        self._deliver_item(order, item, delivered_quantity)
-            elif payload.status == OrderStatus.PENDING:
-                for item in order.items:
-                    self._release_reservation(item)
-                    item.status = OrderItemStatus.PENDING
-                order.status = OrderStatus.PENDING
 
         self._refresh_order_status(order)
         self.db.commit()
@@ -155,14 +141,10 @@ class OrdersService:
         if payload.unit is not None:
             product = self._get_active_product_or_404(item.product_id)
             self._unit_multiplier(product, payload.unit)
-            if item.reserved_quantity_base:
-                self._release_reservation(item)
             item.unit = payload.unit.strip()
             item.status = OrderItemStatus.PENDING
 
         if payload.requested_quantity is not None:
-            if item.reserved_quantity_base:
-                self._release_reservation(item)
             item.requested_quantity = payload.requested_quantity
             item.status = OrderItemStatus.PENDING
 
@@ -192,15 +174,6 @@ class OrdersService:
         self.db.commit()
         return OrderItemRead.model_validate(item)
 
-    def reserve_item(self, order_id: int, item_id: int) -> OrderRead:
-        order = self._get_order_or_404(order_id)
-        self._ensure_editable(order)
-        item = self._get_order_item_or_404(order_id, item_id)
-        self._reserve_item(order, item)
-        self._refresh_order_status(order)
-        self.db.commit()
-        return self._to_order_read(self._get_order_or_404(order_id))
-
     def deliver_item(self, order_id: int, item_id: int, payload: DeliveredQuantityUpdate) -> OrderRead:
         order = self._get_order_or_404(order_id)
         self._ensure_editable(order)
@@ -218,9 +191,6 @@ class OrdersService:
         customer = self.customers_repo.get_customer(order.customer_id)
         if not customer:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
-
-        for item in order.items:
-            self._release_reservation(item)
 
         delivered_amount = self._delivered_amount(order)
         now = datetime.utcnow()
@@ -265,8 +235,6 @@ class OrdersService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Completed orders cannot be deleted because they are linked to the customer ledger.",
             )
-        for item in order.items:
-            self._release_reservation(item)
         self.repo.delete_order(order)
         self.db.commit()
 
@@ -280,13 +248,10 @@ class OrdersService:
         return self._build_xlsx(order), f"{order.order_number}.xlsx"
 
     def _apply_item_status(self, order: Order, item: OrderItem, next_status: str) -> None:
-        if next_status == OrderItemStatus.RESERVED:
-            self._reserve_item(order, item)
-        elif next_status == OrderItemStatus.DELIVERED:
+        if next_status == OrderItemStatus.DELIVERED:
             delivered_quantity = item.delivered_quantity or item.requested_quantity
             self._deliver_item(order, item, delivered_quantity)
         elif next_status == OrderItemStatus.OUT_OF_STOCK:
-            self._release_reservation(item)
             item.status = OrderItemStatus.OUT_OF_STOCK
             item.delivered_quantity = 0
             item.remaining_quantity = item.requested_quantity
@@ -297,33 +262,7 @@ class OrdersService:
                 {"order_id": order.id, "item_id": item.id},
             )
         else:
-            self._release_reservation(item)
             item.status = OrderItemStatus.PENDING
-
-    def _reserve_item(self, order: Order, item: OrderItem) -> None:
-        if item.status == OrderItemStatus.RESERVED and item.reserved_quantity_base:
-            return
-        if item.status == OrderItemStatus.DELIVERED:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Delivered items cannot be reserved")
-
-        product = self._get_active_product_or_404(item.product_id)
-        needed = self._quantity_in_base(product, item.unit, item.requested_quantity)
-        available = max(0, (product.stock_quantity or 0) - (product.reserved_stock_quantity or 0))
-        if needed > available:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Not enough available stock for {product.name}. Available: {available}, required: {needed}",
-            )
-
-        product.reserved_stock_quantity = (product.reserved_stock_quantity or 0) + needed
-        item.reserved_quantity_base = needed
-        item.status = OrderItemStatus.RESERVED
-        self._log_activity(
-            order.customer,
-            "ITEMS_RESERVED",
-            f"{item.product_name} reserved for {order.order_number}",
-            {"order_id": order.id, "item_id": item.id, "reserved_quantity_base": needed},
-        )
 
     def _deliver_item(self, order: Order, item: OrderItem, delivered_quantity: int) -> None:
         if delivered_quantity < 0:
@@ -336,9 +275,8 @@ class OrdersService:
 
         product = self._get_active_product_or_404(item.product_id)
         delivered_base = self._quantity_in_base(product, item.unit, delivered_quantity)
-        reserved_base = item.reserved_quantity_base or 0
-        available_unreserved = max(0, (product.stock_quantity or 0) - (product.reserved_stock_quantity or 0))
-        if delivered_base > reserved_base + available_unreserved:
+        available_unreserved = product.stock_quantity or 0
+        if delivered_base > available_unreserved:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Not enough stock to deliver {product.name}",
@@ -350,7 +288,6 @@ class OrdersService:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Stock quantity cannot go below zero")
 
         product.stock_quantity = new_quantity
-        product.reserved_stock_quantity = max(0, (product.reserved_stock_quantity or 0) - reserved_base)
         product.total_units_sold = (product.total_units_sold or 0) + delivered_base
         product.total_income_generated = Decimal(str(product.total_income_generated or 0)) + (
             Decimal(str(product.selling_price)) * Decimal(delivered_quantity)
@@ -377,7 +314,6 @@ class OrdersService:
 
         item.delivered_quantity = delivered_quantity
         item.remaining_quantity = item.requested_quantity - delivered_quantity
-        item.reserved_quantity_base = 0
         item.status = OrderItemStatus.DELIVERED
         item.total_price = Decimal(str(item.unit_price)) * Decimal(delivered_quantity)
         self._log_activity(
@@ -387,24 +323,13 @@ class OrdersService:
             {"order_id": order.id, "item_id": item.id, "delivered_quantity": delivered_quantity},
         )
 
-    def _release_reservation(self, item: OrderItem) -> None:
-        if not item.reserved_quantity_base:
-            return
-        product = self.products_repo.get_product(item.product_id)
-        if product:
-            product.reserved_stock_quantity = max(0, (product.reserved_stock_quantity or 0) - item.reserved_quantity_base)
-        item.reserved_quantity_base = 0
-
     def _refresh_order_status(self, order: Order) -> None:
         if order.status == OrderStatus.COMPLETED:
             return
         statuses = {item.status for item in order.items}
         if statuses and statuses <= {OrderItemStatus.DELIVERED, OrderItemStatus.OUT_OF_STOCK}:
-            order.status = OrderStatus.DELIVERED
-        elif statuses and statuses == {OrderItemStatus.RESERVED}:
-            order.status = OrderStatus.RESERVED
-        elif OrderItemStatus.RESERVED in statuses:
-            order.status = OrderStatus.RESERVED
+            order.status = OrderStatus.COMPLETED
+            order.completed_at = datetime.utcnow()
         else:
             order.status = OrderStatus.PENDING
 

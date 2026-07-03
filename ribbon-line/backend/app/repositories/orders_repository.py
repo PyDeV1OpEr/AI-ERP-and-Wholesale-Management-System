@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Sequence
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, exists
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.orders import Order, OrderItem
@@ -36,12 +36,17 @@ class OrdersRepository:
             count_query = count_query.where(Order.status == status)
 
         if search:
+            # Search by order number, customer name, or product name in items
             search_clause = or_(
                 Order.order_number.ilike(f"%{search}%"),
                 Customer.full_name.ilike(f"%{search}%"),
+                exists().where(
+                    (OrderItem.order_id == Order.id)
+                    & (OrderItem.product_name.ilike(f"%{search}%"))
+                ),
             )
-            query = query.join(Order.customer).where(search_clause)
-            count_query = count_query.join(Order.customer).where(search_clause)
+            query = query.join(Order.customer, isouter=True).where(search_clause)
+            count_query = count_query.join(Order.customer, isouter=True).where(search_clause)
 
         query = query.order_by(Order.created_at.desc())
         query = query.offset(offset).limit(limit)

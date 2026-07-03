@@ -9,7 +9,7 @@ import { InventoryStockHealthCard } from "@/components/inventory/inventory-stock
 import { InventoryStockOperations } from "@/components/inventory/inventory-stock-operations";
 import { formatLkr } from "@/lib/currency";
 import type { InventoryItem } from "@/types/inventory";
-import { convertInventory } from "@/utils/inventoryConversion";
+import { convertInventory } from "@/lib/inventory-conversion";
 
 interface InventoryDetailViewProps {
   item: InventoryItem | null;

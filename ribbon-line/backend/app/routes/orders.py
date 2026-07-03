@@ -63,11 +63,6 @@ def update_order_item(
     return OrdersService(db).update_order_item(order_id, item_id, payload)
 
 
-@router.post("/{order_id}/items/{item_id}/reserve", response_model=OrderRead)
-def reserve_order_item(order_id: int, item_id: int, db: Session = Depends(get_db)):
-    return OrdersService(db).reserve_item(order_id, item_id)
-
-
 @router.post("/{order_id}/items/{item_id}/deliver", response_model=OrderRead)
 def deliver_order_item(
     order_id: int,

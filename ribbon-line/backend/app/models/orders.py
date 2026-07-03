@@ -12,14 +12,11 @@ from app.database import Base
 
 class OrderStatus:
     PENDING = "PENDING"
-    RESERVED = "RESERVED"
-    DELIVERED = "DELIVERED"
     COMPLETED = "COMPLETED"
 
 
 class OrderItemStatus:
     PENDING = "PENDING"
-    RESERVED = "RESERVED"
     DELIVERED = "DELIVERED"
     OUT_OF_STOCK = "OUT_OF_STOCK"
 

@@ -4,7 +4,7 @@ import { memo, useMemo } from "react";
 import { ProductImage } from "@/components/ui/product-image";
 import { formatLkr } from "@/lib/currency";
 import type { InventoryItem, InventoryStatus } from "@/types/inventory";
-import { convertInventory } from "@/utils/inventoryConversion";
+import { convertInventory } from "@/lib/inventory-conversion";
 
 interface InventoryListingProps {
   items: InventoryItem[];
